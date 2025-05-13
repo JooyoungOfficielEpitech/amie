@@ -98,7 +98,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
         }
 
         // Connect to the /chat namespace
-        const socket = io(`${import.meta.env.VITE_API_BASE_URL || '/api'}/chat`, {
+        const socket = io(`/chat`, {
              auth: { token },
              transports: ['websocket'] 
         });
