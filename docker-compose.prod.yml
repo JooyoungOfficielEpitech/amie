@@ -1,0 +1,78 @@
+version: '3'
+
+services:
+  # Nginx 리버스 프록시
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - amie-network
+
+  # MongoDB 서비스 - 단순화된 설정
+  mongodb:
+    image: mongo:4.4
+    container_name: amie-mongodb
+    restart: always
+    volumes:
+      - ./mongodb-data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=rootpassword
+    networks:
+      - amie-network
+    command: --wiredTigerCacheSizeGB 0.5
+
+  # 백엔드 서비스
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: amie-backend
+    restart: always
+    depends_on:
+      - mongodb
+    environment:
+      - PORT=3001
+      - MONGO_URI=mongodb://root:rootpassword@mongodb:27017/amie?authSource=admin
+      - NODE_ENV=production
+      - JWT_SECRET=yoursecretkey
+    networks:
+      - amie-network
+
+  # 프론트엔드 서비스
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: amie-frontend
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE_URL=/api
+      - VITE_API_TIMEOUT=10000
+    networks:
+      - amie-network
+
+  # Let's Encrypt 인증서 관리
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h; done;'"
+
+networks:
+  amie-network:
+    driver: bridge
