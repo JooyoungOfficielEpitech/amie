@@ -1,0 +1,159 @@
+/* MainPage Styles */
+.pageContainer {
+    display: flex;
+    flex-direction: column;
+    /* height: 100vh; */ /* Change to 100% to take height from parent in App.tsx */
+    height: 100%; 
+    background-color: #f8f8f8; /* Light background for content area */
+}
+
+.contentWrapper {
+    display: flex;
+    flex-grow: 1; /* Let this take the remaining vertical space */
+    overflow: hidden; /* Keep this to prevent content overflow */
+    /* align-items: flex-start; */ /* Remove this */
+    /* height: 100%; */ /* Remove this */
+}
+
+.mainContent {
+    flex-grow: 1;
+    padding: 16px 11px; /* Reduced top/bottom padding from 24px */
+    overflow-y: hidden; /* Prevent scrolling within main content */
+    /* height: calc(100vh - 48px - 32px); */ /* Removed fixed height calculation */
+}
+
+/* Styles for the header within the main content */
+.mainHeader {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+/* Style for the main logo */
+.mainLogo {
+    display: block;
+    max-width: 320px; /* Reverted from 400px */
+    height: auto;
+    margin: 0 auto 8px auto; /* Reverted from 10px */
+}
+
+
+.mainHeader p {
+    font-size: 0.88em; /* Reverted from 1.1em (approx 1.1 / 1.25) */
+    color: #555;
+    font-weight: 500;
+}
+
+/* Styles for content boxes */
+.contentBox {
+    background-color: #fff;
+    padding: 12px;
+    border-radius: 6px; 
+    margin-bottom: 12px;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
+    max-width: 768px; 
+    margin-left: auto; 
+    margin-right: auto; 
+}
+
+.profileHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px; /* Reverted from 15px */
+}
+
+.profileTitle {
+    font-weight: 600;
+    font-size: 0.88em; /* Reverted from 1.1em */
+    color: #333;
+}
+
+.statusBadge {
+    background-color: #E6F9F0; /* Light green */
+    color: #12B76A; /* Green */
+    padding: 3px 8px; /* Reverted from 4px 10px */
+    border-radius: 10px; /* Reverted from 12px */
+    font-size: 0.64em; /* Reverted from 0.8em */
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.actionButton {
+    background-color: #FE466C; /* Primary pink */
+    color: #fff;
+    border: none;
+    padding: 10px 20px; /* Reverted from 12px 25px */
+    border-radius: 16px; /* Reverted from 20px */
+    font-size: 0.8em; /* Reverted from 1em */
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.2s ease;
+}
+
+.actionButton:hover {
+    background-color: #E43A5F;
+}
+
+.boxTitle {
+    font-size: 1.04em;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.guideList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.guideList li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: #555;
+}
+
+.guideNumber {
+    display: inline-flex; /* Use flex to center number */
+    justify-content: center;
+    align-items: center;
+    width: 19px; /* Reverted from 24px */
+    height: 19px; /* Reverted from 24px */
+    background-color: #FE466C; /* Primary pink */
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.72em; /* Reverted from 0.9em */
+    font-weight: bold;
+}
+
+/* Add styles for the button when matching is active */
+.actionButton.matchingActive {
+  background-color: #cccccc; /* Grey background */
+  color: #666666; /* Darker grey text */
+  cursor: default; /* Indicate it's not the primary action */
+}
+
+.actionButton.matchingActive:hover {
+  background-color: #bbbbbb; /* Slightly darker grey on hover */
+}
+
+/* Ensure disabled styles override active styles if needed */
+.actionButton:disabled,
+.actionButton.matchingActive:disabled {
+    background-color: #e0e0e0;
+    color: #a0a0a0;
+    cursor: not-allowed;
+}
+
+/* Add error message styling if not already present */
+.errorMessage {
+    color: red;
+    font-size: 0.8em;
+    margin-top: 10px;
+    text-align: center;
+} 

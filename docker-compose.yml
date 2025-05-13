@@ -1,0 +1,76 @@
+version: '3'
+
+services:
+  # MongoDB 서비스
+  mongodb:
+    image: mongo:latest
+    platform: linux/arm64
+    container_name: amie-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=rootpassword
+    networks:
+      - amie-network
+
+  # 백엔드 서비스
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: amie-backend
+    restart: always
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    environment:
+      - PORT=3001
+      - MONGO_URI=mongodb://root:rootpassword@mongodb:27017/amie?authSource=admin
+      - NODE_ENV=development
+      - JWT_SECRET=user-secret-key
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/public:/app/public
+      - ./backend/tsconfig.json:/app/tsconfig.json
+      - ./backend/.env:/app/.env
+    networks:
+      - amie-network
+    command: npm run dev
+
+  # 프론트엔드 서비스
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: amie-frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3001
+      - VITE_API_TIMEOUT=10000
+      - JWT_SECRET=user-secret-key
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/.env:/app/.env
+    networks:
+      - amie-network
+    command: npm run dev
+
+networks:
+  amie-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
+    driver: local 
