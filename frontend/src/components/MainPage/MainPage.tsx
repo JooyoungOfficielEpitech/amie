@@ -98,7 +98,7 @@ const MainPage: React.FC<MainPageProps> = ({ onLogout, onNavigateToChat, onNavig
         }
 
         // Connect to the /match namespace
-        const socket = io(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/match`, {
+        const socket = io(`${import.meta.env.VITE_API_BASE_URL || '/api'}/match`, {
              auth: { token },
              transports: ['websocket'] // Explicitly use WebSocket
         });

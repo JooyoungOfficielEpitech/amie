@@ -1,11 +1,8 @@
 import axios from 'axios';
 
-// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-// const API_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT || 10000);
-
-// 임시 목업 API 구현 (실제 API 연결 전)
-const API_BASE_URL = 'http://localhost:3001';
-const API_TIMEOUT = 5000;
+// 환경 변수에서 API URL 가져오기
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT || 10000);
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
