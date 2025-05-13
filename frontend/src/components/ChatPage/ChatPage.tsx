@@ -1,0 +1,230 @@
+import React, { useState, useEffect } from 'react';
+import io from 'socket.io-client'; // Use correct import
+import Sidebar from '../MainPage/Sidebar'; // Reuse Sidebar from MainPage
+import ChatWindow from './ChatWindow';
+import ProfileCard from './ProfileCard';
+import styles from './ChatPage.module.css';
+import { chatApi } from '../../api'; // <-- Import chatApi
+
+// Define interface for chat messages matching backend structure
+interface ChatMessage {
+    _id: string;       // Use _id from MongoDB
+    chatRoomId: string; // Keep chatRoomId if needed
+    senderId: string;
+    senderNickname?: string; // Add optional senderNickname
+    message: string;     // Use message instead of text
+    createdAt: string;   // Use string for simplicity, can parse later
+}
+
+interface ChatPageProps {
+    onNavigateToDashboard: () => void; // Function to navigate back
+    onLogout: () => void; // Function for logout
+    onNavigateToMyProfile: () => void; // Add new prop type
+    onNavigateToSettings: () => void; // Add prop type
+    currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings'; // Add prop type
+    roomId: string; // Changed from optional to required based on App.tsx logic
+    userId: string; // Add userId prop from App.tsx
+    onCreditUpdate?: () => Promise<void>; // 크레딧 업데이트 함수 추가
+}
+
+const ChatPage: React.FC<ChatPageProps> = ({ 
+    onNavigateToDashboard, 
+    onLogout, 
+    onNavigateToMyProfile, 
+    onNavigateToSettings, 
+    currentView, 
+    roomId: initialRoomId, // Keep receiving roomId
+    userId, // Receive userId from props
+    onCreditUpdate // 크레딧 업데이트 함수 추가
+}) => {
+    const [chatSocket, setChatSocket] = useState<any | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    // Use roomId directly from props now, assuming App.tsx ensures it's valid
+    const currentRoomId = initialRoomId; 
+    const [messages, setMessages] = useState<ChatMessage[]>([]); // State for messages
+    const [isPartnerLeft, setIsPartnerLeft] = useState(false); // <-- 상대방 나감 상태 추가
+    const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true); // <-- Add loading state
+
+    // TODO: Implement logic to get roomId if not passed via props (e.g., from URL)
+    useEffect(() => {
+        if (!initialRoomId) {
+
+        }
+    }, [initialRoomId]);
+
+    // --- Fetch initial chat history --- 
+    useEffect(() => {
+        const fetchHistory = async () => {
+            if (!currentRoomId) return;
+            setIsLoadingHistory(true);
+            setError(null);
+            try {
+                const historyResponse = await chatApi.getChatHistory(currentRoomId);
+                if (historyResponse.success && historyResponse.messages) {
+                    const formattedMessages = historyResponse.messages.map(msg => ({
+                        ...msg,
+                        createdAt: new Date(msg.createdAt).toISOString()
+                    }));
+                    setMessages(formattedMessages);
+                } else {
+                    setError(historyResponse.message || '채팅 기록을 불러오지 못했습니다.');
+                }
+            } catch (error: any) {
+                setError('채팅 기록 로딩 중 오류 발생');
+                console.error('Error fetching chat history:', error);
+            } finally {
+                setIsLoadingHistory(false);
+            }
+        };
+
+        fetchHistory();
+    }, [currentRoomId]); // Run when roomId is available
+    // --- End Fetch initial chat history --- 
+
+    // WebSocket connection for chat
+    useEffect(() => {
+        
+        if (!currentRoomId) {
+             console.error("[ChatPage Effect] Room ID is missing, cannot connect.");
+             onNavigateToDashboard();
+             return;
+        } 
+
+        const token = localStorage.getItem('token');
+        if (!token) {
+            console.error("No token found, cannot connect to chat socket");
+            setError("로그인이 필요합니다.");
+            return;
+        }
+
+        // Connect to the /chat namespace
+        const socket = io(`/chat`, {
+             auth: { token },
+             transports: ['websocket'] 
+        });
+
+        setChatSocket(socket);
+
+        socket.on('connect', () => {
+            console.log(`Connected to /chat namespace for room ${currentRoomId}`);
+            setError(null);
+            socket.emit('join-room', currentRoomId);
+        });
+
+        socket.on('disconnect', (reason: any) => {
+            console.log('Disconnected from /chat namespace:', reason);
+            // Handle potential need for reconnection or error display
+        });
+
+        socket.on('connect_error', (err: any) => {
+            console.error('Chat socket connection error:', err);
+            setError(`채팅 서버 연결 실패: ${err.message}`);
+        });
+
+        socket.on('error', (errorData: { message: string }) => {
+            console.error('Chat Error from server:', errorData);
+            setError(`채팅 오류: ${errorData.message}`);
+        });
+
+        // Listener for when a user disconnects (the event you added)
+        socket.on('user-disconnected', (data: { roomId: string, userId: string }) => {
+          if (data.roomId === currentRoomId) { // 현재 방의 사용자인지 확인
+            setIsPartnerLeft(true);
+          }
+        });
+
+        // Listener for successful leave confirmation from backend
+        socket.on('chat_left', (data: { roomId: string }) => {
+            console.log(`Successfully left room ${data.roomId}`);
+            // Navigate away after confirmation
+            onNavigateToDashboard(); 
+        });
+
+        // Listener for when the partner leaves
+        socket.on('partner_left', (data: { roomId: string }) => {
+             if (data.roomId === currentRoomId) { // 현재 방의 이벤트인지 확인
+                setIsPartnerLeft(true); // <-- 상태 업데이트
+             }
+
+        });
+        
+        // Listener for new messages from the server - use 'new-message'
+        socket.on('new-message', (message: ChatMessage) => {
+            console.log('Received new-message:', message);
+            // Adapt validation to the new structure
+            if (message && message._id && message.senderId && message.message && message.createdAt) {
+                 const messageWithStringDate = {
+                    ...message,
+                    createdAt: new Date(message.createdAt).toISOString(), // Ensure it's a string
+                 };
+                setMessages((prevMessages) => [...prevMessages, messageWithStringDate]);
+            } else {
+                console.warn('Received invalid message structure:', message);
+            }
+        });
+
+        // Cleanup on component unmount or roomId change
+        return () => {
+            console.log('Disconnecting chat socket...');
+            socket.disconnect();
+            setChatSocket(null);
+            socket.off('new-message'); 
+            socket.off('user-disconnected');
+            socket.off('partner_left');
+            socket.off('chat_left');
+        };
+    // Re-run effect if currentRoomId changes (though ideally it shouldn't change often within the page)
+    }, [currentRoomId, userId, onNavigateToDashboard]); // Add userId and onNavigateToDashboard to dependencies
+
+    // Function to send a message
+    const handleSendMessage = (text: string) => {
+        if (!chatSocket || !currentRoomId) {
+            console.error('Cannot send message, socket or room ID missing.');
+            return;
+        }
+        if (text.trim() === '') return; // Don't send empty messages
+
+        console.log(`Sending message to room ${currentRoomId}: ${text}`);
+        // Emit message to server using the correct event name 'send-message'
+        chatSocket.emit('send-message', {
+            // Backend expects chatRoomId and message according to gateway code
+            chatRoomId: currentRoomId, 
+            message: text 
+        });
+
+    };
+
+    return (
+        <div className={styles.pageWrapper}> 
+            {/* <Header /> */}
+            <div className={styles.chatPageContainer}>
+                <Sidebar 
+                    onLogout={onLogout} 
+                    onNavigateToDashboard={onNavigateToDashboard} 
+                    onNavigateToMyProfile={onNavigateToMyProfile}
+                    onNavigateToSettings={onNavigateToSettings}
+                    currentView={currentView}
+                />
+                <main className={styles.chatArea}>
+                    {isLoadingHistory && <p>채팅 기록 로딩 중...</p>} 
+                    {!isLoadingHistory && error && <p className={styles.errorMessage}>{error}</p>} 
+                    {!isLoadingHistory && !error && 
+                        <ChatWindow 
+                            messages={messages}
+                            onSendMessage={handleSendMessage}
+                            currentUserId={userId} 
+                            isPartnerDisconnected={isPartnerLeft}
+                        /> 
+                    }
+                </main>
+                <ProfileCard 
+                    chatSocket={chatSocket} 
+                    roomId={currentRoomId} 
+                    onCreditUpdate={onCreditUpdate}
+                />
+            </div>
+        </div>
+    );
+};
+
+export default ChatPage; 
