@@ -38,13 +38,11 @@ const CentralRippleAnimation: React.FC<CentralRippleAnimationProps> = ({ isVisib
   
   console.log('[CentralRippleAnimation] 렌더링:', fade === 'in' ? '페이드 인' : '페이드 아웃');
   
+  // 애니메이션 요소 수를 2개로 제한
   return (
     <div className={`central-ripple-container ${fade === 'in' ? 'fade-in' : 'fade-out'}`}>
       <div className="central-ripple ripple-1"></div>
       <div className="central-ripple ripple-2"></div>
-      <div className="central-ripple ripple-3"></div>
-      <div className="central-ripple ripple-4"></div>
-      <div className="central-ripple ripple-5"></div>
     </div>
   );
 };

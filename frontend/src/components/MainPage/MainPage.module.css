@@ -19,6 +19,7 @@
     flex-grow: 1;
     padding: 16px 11px; /* Reduced top/bottom padding from 24px */
     overflow-y: hidden; /* Prevent scrolling within main content */
+    position: relative; /* 애니메이션 컨테이너의 위치 기준점 */
     /* height: calc(100vh - 48px - 32px); */ /* Removed fixed height calculation */
 }
 
@@ -53,7 +54,9 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
     max-width: 768px; 
     margin-left: auto; 
-    margin-right: auto; 
+    margin-right: auto;
+    position: relative; /* 컨텐츠 박스도 상대 위치로 설정 */
+    z-index: 1; /* 애니메이션보다 위에 표시 */
 }
 
 .profileHeader {

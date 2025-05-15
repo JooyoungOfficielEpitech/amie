@@ -155,8 +155,9 @@
     rgba(254, 70, 108, 0.15) 60%, 
     rgba(254, 70, 108, 0) 100%
   );
-  box-shadow: 0 0 40px rgba(254, 70, 108, 0.3); /* 그림자 더 강화 */
-  border: 2px solid rgba(254, 70, 108, 0.4); /* 테두리 두껍게 */
+  /* 그림자 효과만 남기고 테두리 제거 */
+  box-shadow: 0 0 40px rgba(254, 70, 108, 0.3);
+  border: none;
   opacity: 0;
   will-change: transform, opacity;
 }
@@ -170,25 +171,14 @@
 .central-ripple.ripple-2 {
   width: 150px;
   height: 150px;
-  animation: central-ripple-effect 3s infinite cubic-bezier(0.22, 0.61, 0.36, 1) 0.6s;
+  animation: central-ripple-effect 3s infinite cubic-bezier(0.22, 0.61, 0.36, 1) 1.5s;
 }
 
-.central-ripple.ripple-3 {
-  width: 200px;
-  height: 200px;
-  animation: central-ripple-effect 3s infinite cubic-bezier(0.22, 0.61, 0.36, 1) 1.2s;
-}
-
-.central-ripple.ripple-4 {
-  width: 250px;
-  height: 250px;
-  animation: central-ripple-effect 3s infinite cubic-bezier(0.22, 0.61, 0.36, 1) 1.8s;
-}
-
+/* 3번 애니메이션도 제거하여 동시에 표시되는 원 개수를 2개 이하로 제한 */
+.central-ripple.ripple-3,
+.central-ripple.ripple-4,
 .central-ripple.ripple-5 {
-  width: 300px;
-  height: 300px;
-  animation: central-ripple-effect 3s infinite cubic-bezier(0.22, 0.61, 0.36, 1) 2.4s;
+  display: none;
 }
 
 @keyframes central-ripple-effect {
@@ -196,17 +186,17 @@
     transform: scale(0);
     opacity: 0;
   }
-  20% {
+  5% {
     opacity: 0.95;
   }
-  50% {
-    opacity: 0.7;
+  30% {
+    opacity: 0.6;
   }
-  80% {
-    opacity: 0.4;
+  75% {
+    opacity: 0.2;
   }
   100% {
-    transform: scale(3);
+    transform: scale(10); /* 퍼지는 범위를 2배(5→10)로 확장 */
     opacity: 0;
   }
 } 
