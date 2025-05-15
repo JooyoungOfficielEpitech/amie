@@ -18,13 +18,14 @@ services:
     networks:
       - amie-network
 
-  # MongoDB 서비스 - 단순화된 설정
+  # MongoDB 서비스
   mongodb:
-    image: mongo:4.4
-    container_name: amie-mongodb
+    image: mongo:latest
+    platform: linux/arm64
+    container_name: amie-mongodb-prod
     restart: always
     volumes:
-      - ./mongodb-data:/data/db
+      - mongo-data:/data/db
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=rootpassword
@@ -32,20 +33,33 @@ services:
       - amie-network
     command: --wiredTigerCacheSizeGB 0.5
 
+  # Redis 서비스
+  redis:
+    image: redis:alpine
+    container_name: amie-redis-prod
+    restart: always
+    volumes:
+      - redis-data:/data
+    networks:
+      - amie-network
+
   # 백엔드 서비스
   backend:
     build: 
       context: ./backend
       dockerfile: Dockerfile.prod
-    container_name: amie-backend
+    container_name: amie-backend-prod
     restart: always
     depends_on:
       - mongodb
+      - redis
     environment:
       - PORT=3001
       - MONGO_URI=mongodb://root:rootpassword@mongodb:27017/amie?authSource=admin
       - NODE_ENV=production
       - JWT_SECRET=yoursecretkey
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     networks:
       - amie-network
 
@@ -54,13 +68,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
-    container_name: amie-frontend
+    container_name: amie-frontend-prod
     restart: always
     depends_on:
       - backend
     environment:
       - VITE_API_BASE_URL=/api
       - VITE_API_TIMEOUT=10000
+      - JWT_SECRET=yoursecretkey
     networks:
       - amie-network
 
@@ -76,3 +91,9 @@ services:
 networks:
   amie-network:
     driver: bridge
+
+volumes:
+  mongo-data:
+    driver: local
+  redis-data:
+    driver: local
