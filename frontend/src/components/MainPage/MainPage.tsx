@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import styles from './MainPage.module.css';
 import Sidebar from './Sidebar';
 import { userApi, UserProfile, chatApi } from '../../api';
@@ -33,259 +33,240 @@ interface MainPageProps {
     onCreditUpdate: () => Promise<void>; // Add the missing prop type
 }
 
-const MainPage: React.FC<MainPageProps> = ({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate }) => {
-    console.log('--- MainPage Component Render Start ---'); // 추가된 로그
-
-    // State for Profile API data and loading/error
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate }) => {
+    console.log('--- MainPage Component Render Start ---', currentView);
+    
+    // 상태들
     const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null); // General error state
-
-    // State for matching
+    const [error, setError] = useState<string | null>(null);
+    const [matchError, setMatchError] = useState<string | null>(null);
+    const [matchSocket, setMatchSocket] = useState<any>(null);
     const [isMatching, setIsMatching] = useState<boolean>(false);
+    const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null);
+    const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false);
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
-    const [matchSocket, setMatchSocket] = useState<any | null>(null); // Use 'any' to bypass type errors
-    const [matchError, setMatchError] = useState<string | null>(null); // Add matchError state
-    // Dedicated state for socket connection status
     const [isSocketConnectedState, setIsSocketConnectedState] = useState<boolean>(false);
-    const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null); // <-- 매칭된 방 ID 상태 추가
-    const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false); // <-- Add loading state for room status check
+    
+    // 불필요한 API 호출 방지용 레퍼런스
+    const socketInitializedRef = useRef<boolean>(false);
+    const profileFetchTimeRef = useRef<number>(0);
+    
+    // CreditContext 구독
+    const { credit: contextCredit, fetchCredit } = useCredit();
 
     usePayment();
-    
-    const { fetchCredit, credit: contextCredit } = useCredit();
 
-    // Fetch initial data on mount (profile)
+    // 소켓 연결 설정 - 한 번만 초기화하도록 개선
     useEffect(() => {
-        const fetchProfileData = async () => {
-            setIsLoadingProfile(true);
-            setError(null); // Reset general error on profile fetch
-            try {
-                const profileResponse = await userApi.getProfile();
-                if (profileResponse.success && profileResponse.user) {
-                    setProfile(profileResponse.user as ExtendedUserProfile);
-                    
-                    // 매칭 상태 설정
-                    setIsMatching(profileResponse.user.isWaitingForMatch);
-                    setMatchedRoomId(profileResponse.user.matchedRoomId || null);
-                    
-                    // 프로필 로딩 시에도 크레딧 정보 업데이트
-                    if (onCreditUpdate) {
-                        console.log('[MainPage] Updating credit on profile load');
-                        await onCreditUpdate();
-                    }
-                } else {
-                    throw new Error(profileResponse.message || '프로필 정보 로딩 실패');
-                }
-            } catch (err: any) {
-                console.error("Error fetching profile:", err);
-                setError(`프로필 로딩 오류: ${err.message}`);
-            } finally {
-                console.log("[MainPage Profile Effect] Setting isLoadingProfile to false.");
-                setIsLoadingProfile(false);
+        // 이미 초기화되었거나 프로필이 로드되지 않은 경우 스킵
+        if (socketInitializedRef.current || !profile?.id) {
+            return;
+        }
+        
+        // 토큰 처리
+        let processedToken = '';
+        try {
+            const token = localStorage.getItem('accessToken');
+            if (!token) {
+                console.error("No token found in localStorage");
+                setError("로그인이 필요합니다.");
+                return;
             }
-        };
-        fetchProfileData();
-    }, []);
-
-    // WebSocket connection for matching
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
+            
+            // JSON 형식인지 확인
+            try {
+                const tokenObj = JSON.parse(token);
+                processedToken = tokenObj.token || tokenObj.accessToken || token;
+                console.log('[Socket Debug] Token appears to be JSON, extracted:', processedToken.slice(0, 10) + '...');
+            } catch (error) {
+                console.log('[Socket Debug] Token is not JSON, using as is:', token.slice(0, 10) + '...');
+                processedToken = token;
+            }
+            
+            // Bearer 접두사가 있으면 제거
+            if (processedToken.startsWith('Bearer ')) {
+                processedToken = processedToken.substring(7);
+                console.log('[Socket Debug] Removed Bearer prefix:', processedToken.slice(0, 10) + '...');
+            }
+        } catch (error) {
+            console.error('[Socket Debug] Error processing token:', error);
+        }
+        
+        if (!processedToken) {
             console.error("No token found, cannot connect to match socket");
-            setError("로그인이 필요합니다."); // Set error if no token
+            setError("로그인이 필요합니다.");
             return;
         }
 
-        // Connect to the /match namespace
-        const socket = io(`/match`, {
-             auth: { token },
-             transports: ['websocket'] // Explicitly use WebSocket
+        console.log('[Socket Debug] Connecting with token:', processedToken.slice(0, 10) + '...');
+        
+        // 사용자 ID 가져오기 - profile에서 직접 사용
+        const userId = profile.id;
+        console.log('[Socket Debug] Using profile ID for socket connection:', userId);
+
+        // 소켓 연결 설정 - 연결 옵션 최적화
+        const socket = io(`${import.meta.env.VITE_API_BASE_URL}/match`, {
+             auth: { 
+                token: processedToken,
+                userId: userId
+             },
+             transports: ['websocket'], // WebSocket만 사용하여 연결 안정성 향상
+             reconnection: true,
+             reconnectionAttempts: Infinity,
+             reconnectionDelay: 5000, // 재연결 간격 증가
+             reconnectionDelayMax: 30000,
+             timeout: 20000,
+             // @ts-ignore - socket.io-client 타입 정의에는 없지만 실제 라이브러리에서는 지원되는 옵션
+             pingTimeout: 30000,
+             // @ts-ignore
+             pingInterval: 25000,
+             forceNew: false, // 불필요한 새 연결 방지
+             autoConnect: true // 자동 연결
         });
-
+        
         setMatchSocket(socket);
+        socketInitializedRef.current = true;
 
-        socket.on('connect', () => {
+        // 소켓 이벤트 핸들러 정의 - 컴포넌트 내부로 이동
+        const handleConnect = () => {
             console.log('Connected to /match namespace');
-            setError(null); // Clear error on successful connect
-            setIsSocketConnectedState(true); // Update connection state
+            setError(null);
+            setIsSocketConnectedState(true);
             
-            // 소켓 연결 시 프로필에서 이미 가져온 isWaitingForMatch 상태 확인
-            if (profile && profile.isWaitingForMatch) {
+            // 프로필에서 이미 매칭 중인지 확인
+            if (profile.isWaitingForMatch) {
                 setIsMatching(true);
                 console.log('[MainPage Socket Connect] User is already in matching state based on profile data');
             }
-        });
+            
+            console.log(`[MainPage] Checking match status with userId: ${userId}`);
+            
+            // 연결 시 매칭 상태 확인 한 번만 요청
+            socket.emit('check_match_status');
+        };
 
-        socket.on('disconnect', (reason: any) => {
+        const handleDisconnect = (reason: any) => {
             console.log('Disconnected from /match namespace:', reason);
-            setIsSocketConnectedState(false); // Update connection state
-            // 연결이 끊겼을 때 isMatching 상태를 변경하지 않음 (상태 지속성 유지)
-            // 재연결 시 서버 측에서 current_match_status 이벤트로 올바른 상태를 알려줌
-        });
+            setIsSocketConnectedState(false);
+            // 연결이 끊겼을 때도 isMatching 상태 유지 (서버 재연결 시 다시 확인)
+        };
 
-        socket.on('connect_error', (err: any) => {
-            console.error('Match socket connection error:', err);
+        const handleConnectError = (err: any) => {
+            console.error('Match socket connection error:', err.message);
             setError(`매칭 서버 연결 실패: ${err.message}`);
-            setIsSocketConnectedState(false); // Update connection state
-            // 연결 오류 시에도 매칭 상태를 변경하지 않음
-        });
+            setIsSocketConnectedState(false);
+        };
 
-        // Listen for match success
-        socket.on('match_success', (data: { roomId: string; partner: any; creditUsed: number }) => {
+        const handleMatchSuccess = (data: { roomId: string; partner: any; creditUsed: number }) => {
             console.log('Match Success!', data);
             setIsLoadingMatchAction(false);
             setIsMatching(false);
             setMatchedRoomId(data.roomId);
             
-            // 매칭 성공 시 크레딧 업데이트 - profile unlock과 동일한 방식 적용
+            // 매칭 성공 시 크레딧 업데이트 - 필요한 경우만 실행
             console.log('[MainPage] Updating credit after match success (deducted:', data.creditUsed, ')');
             
-            // 직접 creditApi를 호출하여 최신 크레딧 정보 가져오기
-            (async () => {
-                try {
-                    // 백엔드에서 이미 차감이 완료된 후 최신 정보 직접 조회
-                    const creditResponse = await creditApi.getCurrent();
-                    if (creditResponse.success && creditResponse.data) {
-                        console.log('[MainPage] Credit updated directly from API:', creditResponse.data.credit);
-                        
-                        // CreditContext의 상태 직접 업데이트 (중요: 전역 상태 업데이트)
-                        await fetchCredit();
-                        
-                        // 크레딧 정보 업데이트 (App과 Header 모두 갱신)
-                        if (onCreditUpdate) {
-                            await onCreditUpdate();
-                            console.log('[MainPage] Parent components notified of credit update');
-                        }
-                    } else {
-                        console.error('[MainPage] Failed to get updated credit:', creditResponse.message || 'Unknown error');
-                    }
-                } catch (err) {
-                    console.error('[MainPage] Error fetching credit after match:', err);
-                }
-            })();
-        });
+            // 크레딧 정보만 업데이트하고 전체 프로필 갱신은 스킵
+            fetchCredit().catch(err => {
+                console.error('[MainPage] Error fetching credit after match:', err);
+            });
+        };
 
-        // Listen for match errors from the server
-        socket.on('match_error', (errorData: { message: string }) => {
+        const handleMatchError = (errorData: { message: string }) => {
             console.error('Match Error from server:', errorData);
             setError(`매칭 오류: ${errorData.message}`);
             setIsLoadingMatchAction(false);
             
             // '이미 매칭 대기 중입니다' 오류인 경우 isMatching 상태를 true로 설정
-            if (errorData.message === '이미 매칭 대기 중입니다') {
+            if (errorData.message.includes('이미') && errorData.message.includes('대기')) {
                 console.log('[MainPage] Already in matching queue, updating state');
                 setIsMatching(true);
                 setMatchError(null); // 오류 메시지를 지워 사용자 혼란 방지
             }
-            // 매칭 에러가 발생해도 isMatching 상태를 유지할 수 있도록 주석 처리
-            // 서버에서 제대로 된 상태를 current_match_status로 보내줄 것임
-            // setIsMatching(false); 
-        });
+        };
 
-        // Listener for match cancellation confirmation
-        socket.on('match_cancelled', () => {
+        const handleMatchCancelled = () => {
             console.log('[MainPage] Match cancelled successfully.');
             setIsMatching(false);
             
-            // 매칭 취소 시에도 크레딧 정보 업데이트
-            if (onCreditUpdate) {
-                console.log('[MainPage] Updating credit on match cancellation');
-                onCreditUpdate().catch(err => {
-                    console.error('[MainPage] Error updating credit on match cancellation:', err);
-                });
-            }
-            
-            // Optionally show a success message
-        });
+            // 매칭 취소 시에도 크레딧 정보만 업데이트
+            fetchCredit().catch(err => {
+                console.error('[MainPage] Error updating credit on match cancellation:', err);
+            });
+        };
 
-        // Listener for errors during cancellation
-        socket.on('cancel_error', (data: { message: string }) => {
+        const handleCancelError = (data: { message: string }) => {
             console.error('[MainPage] Error cancelling match:', data.message);
             setMatchError(`매칭 취소 실패: ${data.message}`);
-            // Keep isMatching true so user can try again or see the error
-        });
+        };
 
-        // --- Add Listener for current_match_status --- 
-        socket.on('current_match_status', (data: { isMatching: boolean }) => {
+        const handleCurrentMatchStatus = (data: { isMatching: boolean }) => {
             console.log('[MainPage] Received current_match_status:', data);
             setIsMatching(data.isMatching);
-            
-            // 매칭 상태 업데이트 시 크레딧 정보도 업데이트
-            if (onCreditUpdate) {
-                console.log('[MainPage] Updating credit on match status change');
-                onCreditUpdate().catch(err => {
-                    console.error('[MainPage] Error updating credit on match status change:', err);
-                });
-            }
-            
-            // Optionally clear errors if status is updated
-            // setError(null);
-            // setMatchError(null);
-        });
-        // --- End Add Listener --- 
-
-        // Cleanup on component unmount
-        return () => {
-            console.log('Disconnecting match socket...');
-            socket.disconnect();
-            setMatchSocket(null);
-            setIsLoadingMatchAction(false);
-            socket.off('current_match_status'); // <-- Unregister the new listener
-            // 상태 초기화 부분을 제거하여 상태 지속성 유지
-            // setIsMatching(false);
-            // setMatchedRoomId(null);
         };
-    }, [profile, onCreditUpdate, fetchCredit]); // fetchCredit 의존성 추가
 
-    // Handle Match Button Click (Start/Cancel/Go to Chat) - 여성 사용자용
+        // 이벤트 리스너 등록
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+        socket.on('connect_error', handleConnectError);
+        socket.on('match_success', handleMatchSuccess);
+        socket.on('match_error', handleMatchError);
+        socket.on('match_cancelled', handleMatchCancelled);
+        socket.on('cancel_error', handleCancelError);
+        socket.on('current_match_status', handleCurrentMatchStatus);
+
+        // 컴포넌트 언마운트 시만 소켓 정리 - 이벤트는 여기서 정리하지 않음
+        return () => {
+            console.log('MainPage unmounting - Disconnecting match socket...');
+            if (socket.connected) {
+                socket.disconnect();
+            }
+        };
+    }, [profile?.id, profile?.isWaitingForMatch, fetchCredit, onCreditUpdate]);
+
+    // 매칭 버튼 클릭 핸들러 최적화
     const handleMatchButtonClick = useCallback(async () => {
-        // --- Go to Chatroom Logic ---
+        // 이미 매칭된 경우 채팅방으로 이동
         if (matchedRoomId) {
-            setIsLoadingRoomStatus(true); // <-- Start loading
+            setIsLoadingRoomStatus(true);
             setMatchError(null);
             try {
                 const statusResponse = await chatApi.getChatRoomStatus(matchedRoomId);
                 if (statusResponse.success && statusResponse.isActive) {
                     onNavigateToChat(matchedRoomId);
-                    setMatchedRoomId(null); // Clear state after successful navigation intent
+                    setMatchedRoomId(null);
                 } else if (statusResponse.success && !statusResponse.isActive) {
-                    setMatchError(AppStrings.CHATPAGE_PARTNER_LEFT_MESSAGE); // Show partner left message
-                    setMatchedRoomId(null); // Clear the invalid room ID
-                    setIsMatching(false); // Ensure matching state is also false
+                    setMatchError(AppStrings.CHATPAGE_PARTNER_LEFT_MESSAGE);
+                    setMatchedRoomId(null);
+                    setIsMatching(false);
                 } else {
-                    // API call failed or returned success: false
                     setMatchError(statusResponse.message || '채팅방 상태 확인 실패');
-                    // Optionally clear matchedRoomId here too, or let user retry?
-                    // setMatchedRoomId(null);
                 }
             } catch (error: any) {
                 console.error('Error checking chat room status:', error);
                 setMatchError('채팅방 상태 확인 중 오류 발생');
             } finally {
-                 setIsLoadingRoomStatus(false); // <-- Stop loading
+                setIsLoadingRoomStatus(false);
             }
-            return; // Exit after handling Go to Chatroom
+            return;
         }
-        // --- End Go to Chatroom Logic ---
 
-        if (!matchSocket) {
+        // 소켓 연결 확인
+        if (!matchSocket?.connected) {
             setMatchError('매칭 서버에 연결되지 않았습니다.');
             return;
         }
-        setMatchError(null); // Clear previous errors
+        setMatchError(null);
 
+        // 매칭 취소 또는 시작
         if (isMatching) {
-            // --- Cancel Match Logic ---
             console.log('[MainPage] Attempting to cancel match...');
-            matchSocket.emit('cancel_match'); 
+            matchSocket.emit('cancel_match');
         } else {
-            // --- Start Match Logic ---
             console.log('[MainPage] Attempting to start match...');
             
-            // 실시간 크레딧 검사 - CreditContext의 값 직접 사용
-            console.log(`[MainPage] Current credit before match: ${contextCredit}, Required: ${REQUIRED_MATCHING_CREDIT}`);
-            
+            // 크레딧 확인
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
                 console.log('[MainPage] Insufficient credit, match canceled');
                 setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
@@ -296,7 +277,7 @@ const MainPage: React.FC<MainPageProps> = ({ onLogout, onNavigateToChat, onNavig
             setIsMatching(true);
             matchSocket.emit('start_match');
         }
-    }, [matchSocket, isMatching, matchedRoomId, onNavigateToChat, contextCredit]); // contextCredit 의존성 추가
+    }, [matchSocket?.connected, isMatching, matchedRoomId, onNavigateToChat, contextCredit]);
 
     // Original dashboard navigation handler (if needed elsewhere, otherwise remove)
     const handleNavigateToDashboard = () => {
@@ -309,36 +290,35 @@ const MainPage: React.FC<MainPageProps> = ({ onLogout, onNavigateToChat, onNavig
          }
     };
 
-    // --- Update Button Text Logic --- 
-    const buttonText = isLoadingMatchAction || isLoadingRoomStatus // <-- Include room status loading
-        ? AppStrings.MAINPAGE_MATCHING_IN_PROGRESS // Reuse progress text or create a specific one
-        : matchedRoomId 
-        ? AppStrings.MAINPAGE_GO_TO_CHATROOM_BUTTON 
-        : isMatching
-        ? AppStrings.MAINPAGE_CANCEL_MATCHING_BUTTON
-        : AppStrings.MAINPAGE_START_MATCHING_BUTTON;
-    // --- End Update Button Text Logic --- 
-
-    // --- Update Button Disabled Logic --- 
-    // 실시간 크레딧 체크 추가 - CreditContext의 값을 직접 사용
-    const hasSufficientCredit = useCallback(() => {
-        // profile 대신 CreditContext의 credit 값 사용
-        return contextCredit >= REQUIRED_MATCHING_CREDIT;
-    }, [contextCredit]);
+    // 버튼 상태 관련 memoized 값들
+    const buttonText = useMemo(() => 
+        isLoadingMatchAction || isLoadingRoomStatus 
+            ? AppStrings.MAINPAGE_MATCHING_IN_PROGRESS
+            : matchedRoomId 
+            ? AppStrings.MAINPAGE_GO_TO_CHATROOM_BUTTON 
+            : isMatching
+            ? AppStrings.MAINPAGE_CANCEL_MATCHING_BUTTON
+            : AppStrings.MAINPAGE_START_MATCHING_BUTTON,
+    [isLoadingMatchAction, isLoadingRoomStatus, matchedRoomId, isMatching]);
     
-    const isButtonDisabled = isLoadingProfile 
+    const hasSufficientCredit = useMemo(() => 
+        contextCredit >= REQUIRED_MATCHING_CREDIT,
+    [contextCredit]);
+    
+    const isButtonDisabled = useMemo(() => 
+        isLoadingProfile 
         || isLoadingMatchAction 
-        || isLoadingRoomStatus // <-- Disable button during room status check
+        || isLoadingRoomStatus
         || !isSocketConnectedState
-        || (!isMatching && !matchedRoomId && !hasSufficientCredit()); // 매칭 시작 시에만 크레딧 체크
-    // --- End Update Button Disabled Logic ---
+        || (!isMatching && !matchedRoomId && !hasSufficientCredit),
+    [isLoadingProfile, isLoadingMatchAction, isLoadingRoomStatus, isSocketConnectedState, isMatching, matchedRoomId, hasSufficientCredit]);
 
-    // 크레딧 변경 감지 및 UI 업데이트
+    // 크레딧 변경 감지 - 불필요한 렌더링 방지
     useEffect(() => {
-        // CreditContext의 크레딧 값 변화 감지
+        // CreditContext의 크레딧 값이 변할 때만 실행
         console.log(`[MainPage] Credit Context value: ${contextCredit}, Profile credit: ${profile?.credit}`);
         
-        // 크레딧 부족 시 오류 메시지 표시, 충분해지면 메시지 제거
+        // 크레딧 부족 시 오류 메시지 표시, 충분해지면 메시지 제거 - 매칭 상태가 아닐 때만
         if (!isMatching && !matchedRoomId) {
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
                 setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
@@ -346,7 +326,53 @@ const MainPage: React.FC<MainPageProps> = ({ onLogout, onNavigateToChat, onNavig
                 setMatchError(null);
             }
         }
-    }, [contextCredit, profile, isMatching, matchedRoomId, matchError, setMatchError]);
+    }, [contextCredit]);
+
+    // 프로필 불러오기 최적화 - 중복 요청 방지
+    useEffect(() => {
+        const fetchProfileData = async () => {
+            // 최근 5초 이내에 이미 요청했다면 무시
+            const now = Date.now();
+            if (now - profileFetchTimeRef.current < 5000) {
+                return;
+            }
+            
+            profileFetchTimeRef.current = now;
+            setIsLoadingProfile(true);
+            
+            try {
+                const response = await userApi.getProfile();
+                if (response.success && response.user) {
+                    // 확장된 프로필 타입으로 변환
+                    const extendedProfile: ExtendedUserProfile = {
+                        ...response.user,
+                        isWaitingForMatch: response.user.isWaitingForMatch || false
+                    };
+                    setProfile(extendedProfile);
+                    setError(null);
+                    
+                    // 프로필에서 매칭 상태 확인
+                    if (extendedProfile.isWaitingForMatch && !isMatching) {
+                        setIsMatching(true);
+                    }
+                    
+                    // 매칭된 채팅방이 있으면 설정
+                    if (extendedProfile.matchedRoomId && !matchedRoomId) {
+                        setMatchedRoomId(extendedProfile.matchedRoomId);
+                    }
+                } else {
+                    setError('프로필을 불러오는데 실패했습니다.');
+                }
+            } catch (error: any) {
+                console.error('Error fetching profile:', error);
+                setError('프로필 불러오기 오류: ' + (error.message || '알 수 없는 오류'));
+            } finally {
+                setIsLoadingProfile(false);
+            }
+        };
+        
+        fetchProfileData();
+    }, []);
 
     return (
         <div className={styles.pageContainer}>
@@ -421,6 +447,6 @@ const MainPage: React.FC<MainPageProps> = ({ onLogout, onNavigateToChat, onNavig
             </div>
         </div>
     );
-};
+});
 
 export default MainPage; 

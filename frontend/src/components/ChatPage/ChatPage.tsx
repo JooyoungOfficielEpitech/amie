@@ -91,17 +91,52 @@ const ChatPage: React.FC<ChatPageProps> = ({
         } 
 
         const token = localStorage.getItem('token');
-        if (!token) {
+        
+        // 토큰 형식 확인 및 처리
+        let processedToken = token || '';
+        try {
+            if (token && token.startsWith('{') && token.endsWith('}')) {
+                // JSON 형식인 경우 파싱하여 토큰 값만 추출
+                const tokenObj = JSON.parse(token);
+                processedToken = tokenObj.token || tokenObj.accessToken || token;
+                console.log('[Socket Debug - Chat] Token appears to be JSON, extracted:', processedToken.slice(0, 10) + '...');
+            } else if (token) {
+                console.log('[Socket Debug - Chat] Using token as is:', token.slice(0, 10) + '...');
+            }
+            
+            // Bearer 접두사가 있으면 제거
+            if (processedToken.startsWith('Bearer ')) {
+                processedToken = processedToken.substring(7);
+                console.log('[Socket Debug - Chat] Removed Bearer prefix:', processedToken.slice(0, 10) + '...');
+            }
+        } catch (error) {
+            console.error('[Socket Debug - Chat] Error processing token:', error);
+        }
+        
+        if (!processedToken) {
             console.error("No token found, cannot connect to chat socket");
             setError("로그인이 필요합니다.");
             return;
         }
 
-        // Connect to the /chat namespace
-        const socket = io(`/chat`, {
-             auth: { token },
-             transports: ['websocket'] 
+        // Socket debugging
+        console.log('[Socket Debug - Chat] Connecting with token:', processedToken.slice(0, 10) + '...');
+
+        // Connect to the /chat namespace with the full URL and token query parameter
+        const socket = io(`${import.meta.env.VITE_API_BASE_URL}/chat?token=${encodeURIComponent(processedToken)}`, {
+             auth: { 
+                token: processedToken
+             },
+             transports: ['websocket'],
+             reconnection: true,
+             reconnectionAttempts: 5,
+             reconnectionDelay: 1000,
+             forceNew: true,
+             autoConnect: false
         });
+        
+        // 수동으로 연결 시작
+        socket.connect();
 
         setChatSocket(socket);
 
@@ -117,7 +152,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
         });
 
         socket.on('connect_error', (err: any) => {
-            console.error('Chat socket connection error:', err);
+            console.error('Chat socket connection error details:', err, err.message, err.data);
             setError(`채팅 서버 연결 실패: ${err.message}`);
         });
 

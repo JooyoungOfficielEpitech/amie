@@ -316,17 +316,41 @@ function App() {
 
   // Use useEffect to check token and set initial login state
   useEffect(() => {
-      const token = localStorage.getItem('token');
-      if (token) {
-          console.log("[App] Token found, setting logged in state to true.");
-          // TODO: Optionally verify token validity here before setting logged in
-          setIsLoggedIn(true); 
-      } else {
-          console.log("[App] No token found on initial load, setting logged in state to false.");
-          setIsLoggedIn(false);
-          setUserCredit(null); // Ensure credit is null if not logged in initially
+    // Check if token exists in localStorage
+    const token = localStorage.getItem('token');
+    
+    // 토큰 내용 디버깅
+    if (token) {
+      console.log('[App] Token debugging - token exists');
+      try {
+        // Base64 디코딩으로 토큰 내용 확인
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          console.log('[App] Token payload:', payload);
+          
+          // 만료시간 확인
+          if (payload.exp) {
+            const expiryDate = new Date(payload.exp * 1000);
+            const now = new Date();
+            const isExpired = expiryDate < now;
+            console.log('[App] Token expiry:', expiryDate.toISOString());
+            console.log('[App] Token is ' + (isExpired ? 'EXPIRED' : 'valid'));
+          }
+        }
+      } catch (error) {
+        console.error('[App] Error decoding token:', error);
       }
-  }, []); // Run once on initial load to check token
+    }
+    
+    if (token) {
+      console.log('[App] Token found, setting logged in state to true.');
+      setIsLoggedIn(true);
+    } else {
+      setIsLoggedIn(false);
+      setUserCredit(null); // Ensure credit is null if not logged in initially
+    }
+  }, []);
 
   // Use a separate useEffect to fetch credit *after* isLoggedIn is confirmed true
   useEffect(() => {

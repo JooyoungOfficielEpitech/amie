@@ -17,6 +17,7 @@ interface MatchedUserInfo {
     height: number;
     city: string;
     profileImages: string[];
+    gender?: string; // 성별 정보 추가
     unlockedPhotoSlotIndexes?: number[]; // 해제된 사진 슬롯 인덱스 배열 (optional)
 }
 
@@ -72,23 +73,28 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
             }
             setCurrentChatRoomId(roomId); // roomId prop으로 내부 상태 업데이트
 
+            console.log(`[ProfileCard] 매칭 상태 확인 시작: roomId=${roomId}`);
             setIsLoading(true);
             setError(null);
             try {
                 const response = await fetchWithAuth('/api/match/status'); // 이 API는 현재 사용자의 매칭 상태를 가져옴
                 const data: MatchStatusResponse = await response.json();
 
+                console.log('[ProfileCard] 매칭 상태 응답:', data);
+
                 if (!response.ok) {
                     throw new Error(data.error || '매칭 상태를 불러오는데 실패했습니다.');
                 }
 
                 if (data.success && data.matchedUser && data.chatRoomId) {
+                    console.log(`[ProfileCard] 매칭된 사용자 정보: nickname=${data.matchedUser.nickname}, gender=${data.matchedUser.gender}`);
                     setMatchedUser(data.matchedUser);
                     setCurrentChatRoomId(data.chatRoomId); // 실제 chatRoomId로 업데이트
                     
                     // unlockedPhotos 상태 초기화
                     const initialUnlockStates = Array(data.matchedUser.profileImages.length).fill(false);
                     if (data.matchedUser.unlockedPhotoSlotIndexes) {
+                        console.log(`[ProfileCard] 해제된 사진 슬롯: ${data.matchedUser.unlockedPhotoSlotIndexes.join(', ')}`);
                         data.matchedUser.unlockedPhotoSlotIndexes.forEach(index => {
                             if (index >= 0 && index < initialUnlockStates.length) {
                                 initialUnlockStates[index] = true;
@@ -98,18 +104,17 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
                     setUnlockedPhotos(initialUnlockStates);
 
                 } else if (data.success && data.isWaiting) {
+                    console.log('[ProfileCard] 매칭 대기 중');
                     setMatchedUser(null);
-                    // setCurrentChatRoomId(null); // 대기 중일 때는 chatRoomId가 없을 수 있음
                 } else {
+                    console.log('[ProfileCard] 매칭 정보 없음:', data.error || '매칭 정보를 찾을 수 없습니다.');
                     setMatchedUser(null);
-                    // setCurrentChatRoomId(null);
                     setError(data.error || '매칭 정보를 찾을 수 없습니다.');
                 }
             } catch (err: any) {
-                console.error("Error fetching match status:", err);
+                console.error("[ProfileCard] 매칭 상태 확인 오류:", err);
                 setError(err.message || '매칭 상태 로딩 중 오류 발생');
                 setMatchedUser(null);
-                // setCurrentChatRoomId(null);
             } finally {
                 setIsLoading(false);
             }

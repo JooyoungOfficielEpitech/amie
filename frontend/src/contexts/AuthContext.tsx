@@ -1,201 +1,167 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi, LoginCredentials } from '../api/authApi';
-import { SignupData } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { userApi } from '../api';
 
-interface User {
-  id: string;
-  nickname: string;
-  gender: 'male' | 'female';
-  credit: number;
-}
-
-interface AuthContextType {
-  isAuthenticated: boolean;
-  user: User | null;
-  loading: boolean;
-  error: string | null;
-  login: (credentials: LoginCredentials) => Promise<void>;
-  register: (data: SignupData) => Promise<void>;
-  socialLogin: (provider: 'google' | 'kakao', token: string) => Promise<void>;
-  logout: () => void;
+export interface AuthContextType {
+  isLoggedIn: boolean;
   token: string | null;
-  getToken: () => Promise<string | null>;
+  userId: string | null;
+  login: (token: string) => void;
+  logout: () => void;
+  refreshUserInfo: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  isLoggedIn: false,
+  token: null,
+  userId: null,
+  login: () => {},
+  logout: () => {},
+  refreshUserInfo: async () => {}
+});
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // 요청 상태 추적을 위한 참조 변수
+  const isRefreshingRef = useRef<boolean>(false);
+  const lastRefreshTimeRef = useRef<number>(0);
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [token] = useState<string | null>(localStorage.getItem('token'));
-
+  // 컴포넌트 마운트 시 로컬 스토리지에서 토큰 확인
   useEffect(() => {
-    // 토큰 유효성 검사 및 사용자 정보 불러오기
-    const checkAuth = async () => {
-      const token = localStorage.getItem('token');
+    console.log('[App isLoggedIn] Checking auth state...');
+    
+    // 토큰 확인 - 'token'과 'accessToken' 둘 다 확인
+    const storedToken = localStorage.getItem('accessToken');
+    const legacyToken = localStorage.getItem('token');
+    
+    if (storedToken) {
+      // 새 토큰 형식 사용
+      setToken(storedToken);
+      setIsLoggedIn(true);
+      console.log('[App isLoggedIn] is true, fetching user credit.');
       
-      if (!token) {
-        setIsAuthenticated(false);
-        setUser(null);
-        setLoading(false);
-        return;
-      }
+      // 토큰이 있으면 사용자 정보 가져오기
+      refreshUserInfo();
+    } else if (legacyToken) {
+      // 레거시 토큰이 있으면 새 형식으로 마이그레이션
+      localStorage.setItem('accessToken', legacyToken);
+      localStorage.removeItem('token');
       
-      try {
-        // 토큰이 유효한지 확인하는 방법은 주로 사용자 정보를 불러오는 API를 호출하는 것
-        // 이 부분은 실제 API 엔드포인트를 사용하도록 수정해야 함
-        const userData = await getUserData();
-        setUser(userData);
-        setIsAuthenticated(true);
-      } catch (err) {
-        console.error('Authentication check failed:', err);
-        localStorage.removeItem('token');
-        setIsAuthenticated(false);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
+      setToken(legacyToken);
+      setIsLoggedIn(true);
+      console.log('[App isLoggedIn] Legacy token migrated, fetching user info.');
+      
+      // 토큰이 있으면 사용자 정보 가져오기
+      refreshUserInfo();
+    }
   }, []);
 
-  // 실제 API 호출로 구현할 필요가 있음
-  const getUserData = async (): Promise<User> => {
-    try {
-      // 여기서는 userApi.getProfile()을 사용해야 하지만, 지금은 목업 데이터를 반환
-      const userData = {
-        id: 'user-id',
-        nickname: '사용자',
-        gender: 'male' as const,
-        credit: 50
-      };
-      return userData;
-    } catch (error) {
-      throw error;
+  // 사용자 정보 업데이트 함수
+  const refreshUserInfo = useCallback(async () => {
+    // 이미 요청 중이면 무시
+    if (isRefreshingRef.current) {
+      return;
     }
-  };
-
-  const login = async (credentials: LoginCredentials) => {
-    setLoading(true);
-    setError(null);
+    
+    // 3초 이내에 이미 갱신한 경우 스킵
+    const now = Date.now();
+    if (now - lastRefreshTimeRef.current < 3000) {
+      return;
+    }
+    
+    isRefreshingRef.current = true;
     
     try {
-      const response = await authApi.login(credentials);
+      const profileResponse = await userApi.getProfile();
+      lastRefreshTimeRef.current = now;
       
-      if (response.success && response.token) {
-        localStorage.setItem('token', response.token);
-        setUser(response.user);
-        setIsAuthenticated(true);
+      if (profileResponse.success && profileResponse.user) {
+        setUserId(profileResponse.user.id);
+        console.log('[AuthContext] User info refreshed, userId:', profileResponse.user.id);
       } else {
-        throw new Error('로그인에 실패했습니다.');
-      }
-    } catch (err: any) {
-      setError(err.message || '로그인 중 오류가 발생했습니다.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (data: SignupData) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // SignupData와 RegisterData 타입을 맞추기 위한 변환
-      const registerData = {
-        email: data.email,
-        password: data.password,
-        nickname: data.nickname,
-        birthYear: parseInt(data.dob.split('-')[0], 10),
-        height: parseInt(data.height, 10),
-        city: data.city,
-        gender: data.gender === '' ? 'male' : data.gender,
-        profileImages: [], // API 호출 전에 이미지 업로드 처리 필요
-        businessCardImage: data.businessCard ? '' : undefined
-      };
-      
-      // 파일 업로드 로직은 별도로 구현 필요
-      
-      const response = await authApi.register(registerData);
-      
-      if (response.success) {
-        // 회원가입 성공 후 자동 로그인 처리
-        if (response.token) {
-          localStorage.setItem('token', response.token);
-          setUser(response.user);
-          setIsAuthenticated(true);
+        console.error('[AuthContext] Failed to get user profile:', profileResponse.message);
+        
+        // 오류가 토큰 만료 또는 인증 오류인 경우 자동 로그아웃
+        if (profileResponse.message?.includes('인증') || profileResponse.message?.includes('만료') || 
+            profileResponse.message?.includes('auth') || profileResponse.message?.includes('expired')) {
+          console.log('[AuthContext] Auth error detected, logging out');
+          logout();
         }
-      } else {
-        throw new Error('회원가입에 실패했습니다.');
       }
-    } catch (err: any) {
-      setError(err.message || '회원가입 중 오류가 발생했습니다.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const socialLogin = async (provider: 'google' | 'kakao', token: string) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await authApi.socialLogin({ provider, token });
+    } catch (error: any) {
+      console.error('[AuthContext] Error fetching user profile:', error);
       
-      if (response.success && response.token) {
-        localStorage.setItem('token', response.token);
-        setUser(response.user);
-        setIsAuthenticated(true);
-      } else {
-        throw new Error('소셜 로그인에 실패했습니다.');
+      // 401 오류시 자동 로그아웃
+      if (error.status === 401 || error.message?.includes('unauthorized')) {
+        console.log('[AuthContext] 401 error detected, logging out');
+        logout();
       }
-    } catch (err: any) {
-      setError(err.message || '소셜 로그인 중 오류가 발생했습니다.');
-      throw err;
     } finally {
-      setLoading(false);
+      isRefreshingRef.current = false;
     }
-  };
+  }, []);
 
-  const logout = () => {
+  // 로그인 처리 함수
+  const login = useCallback((newToken: string) => {
+    // 'Bearer ' 접두사가 있으면 제거
+    let processedToken = newToken;
+    if (processedToken.startsWith('Bearer ')) {
+      processedToken = processedToken.substring(7);
+    }
+    
+    // JSON 문자열 형태인 경우 추출
+    try {
+      const tokenObj = JSON.parse(processedToken);
+      if (tokenObj.token || tokenObj.accessToken) {
+        processedToken = tokenObj.token || tokenObj.accessToken;
+      }
+    } catch (e) {
+      // JSON이 아니면 그대로 사용
+    }
+    
+    // 새 표준 키에 저장
+    localStorage.setItem('accessToken', processedToken);
+    
+    // 레거시 키 제거
     localStorage.removeItem('token');
-    setIsAuthenticated(false);
-    setUser(null);
-  };
+    
+    setToken(processedToken);
+    setIsLoggedIn(true);
+    
+    // 로그인 시 사용자 정보 가져오기
+    refreshUserInfo();
+  }, [refreshUserInfo]);
 
-  const getToken = async (): Promise<string | null> => {
-    return token;
-  };
+  // 로그아웃 처리 함수
+  const logout = useCallback(() => {
+    // 모든 토큰 키 제거
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('token');
+    
+    // 모든 localStorage 항목 제거 (완전 초기화)
+    localStorage.clear();
+    
+    setToken(null);
+    setUserId(null);
+    setIsLoggedIn(false);
+  }, []);
 
-  const value = {
-    isAuthenticated,
-    user,
-    loading,
-    error,
-    login,
-    register,
-    socialLogin,
-    logout,
-    token,
-    getToken
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        isLoggedIn,
+        token,
+        userId,
+        login,
+        logout,
+        refreshUserInfo
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }; 

@@ -257,4 +257,83 @@ router.get('/:userId/match', matchQueueController.findMatch as unknown as Reques
  */
 router.get('/', matchQueueController.getAllQueueEntries as unknown as RequestHandler);
 
+/**
+ * @swagger
+ * /api/queue/stats:
+ *   get:
+ *     summary: 대기열 통계 조회
+ *     description: 현재 매칭 대기열에 있는 남성과 여성 사용자 수를 MongoDB와 Redis에서 확인합니다. 선택적으로 동기화도 수행합니다.
+ *     tags: [MatchQueue]
+ *     security:
+ *       - jwtAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: sync
+ *         schema:
+ *           type: boolean
+ *         required: false
+ *         description: true로 설정하면 Redis와 MongoDB 간 대기열 데이터를 동기화합니다
+ *     responses:
+ *       200:
+ *         description: 대기열 통계 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 sync:
+ *                   type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                     syncCount:
+ *                       type: number
+ *                   nullable: true
+ *                 mongodb:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                     male:
+ *                       type: object
+ *                       properties:
+ *                         count:
+ *                           type: number
+ *                         users:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                     female:
+ *                       type: object
+ *                       properties:
+ *                         count:
+ *                           type: number
+ *                         users:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                 redis:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                     male:
+ *                       type: object
+ *                     female:
+ *                       type: object
+ *                 inconsistencies:
+ *                   type: object
+ *                   properties:
+ *                     male:
+ *                       type: boolean
+ *                     female:
+ *                       type: boolean
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       500:
+ *         description: 서버 오류
+ */
+router.get('/stats', matchQueueController.getQueueStats as unknown as RequestHandler);
+
 export default router; 
