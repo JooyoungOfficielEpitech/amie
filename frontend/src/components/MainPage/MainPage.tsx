@@ -8,6 +8,7 @@ import io from "socket.io-client";
 import { usePayment } from '../../contexts/PaymentContext';
 import { useCredit } from '../../contexts/CreditContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
+import CentralRippleAnimation from './CentralRippleAnimation';
 
 // 성별별 매칭 컴포넌트 가져오기
 import MaleMatchingBox from './MaleMatchingBox';
@@ -46,6 +47,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false);
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [isSocketConnectedState, setIsSocketConnectedState] = useState<boolean>(false);
+    const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
     
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
@@ -161,6 +163,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             console.log('Match Success!', data);
             setIsLoadingMatchAction(false);
             setIsMatching(false);
+            // 매칭 성공 시 애니메이션 비활성화
+            setShowRippleAnimation(false);
             setMatchedRoomId(data.roomId);
             
             // 매칭 성공 시 크레딧 업데이트 - 필요한 경우만 실행
@@ -176,6 +180,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             console.error('Match Error from server:', errorData);
             setError(`매칭 오류: ${errorData.message}`);
             setIsLoadingMatchAction(false);
+            // 매칭 오류 시 애니메이션 비활성화
+            setShowRippleAnimation(false);
             
             // '이미 매칭 대기 중입니다' 오류인 경우 isMatching 상태를 true로 설정
             if (errorData.message.includes('이미') && errorData.message.includes('대기')) {
@@ -188,6 +194,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         const handleMatchCancelled = () => {
             console.log('[MainPage] Match cancelled successfully.');
             setIsMatching(false);
+            // 매칭 취소 시 애니메이션 비활성화
+            setShowRippleAnimation(false);
             
             // 매칭 취소 시에도 크레딧 정보만 업데이트
             fetchCredit().catch(err => {
@@ -203,6 +211,9 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         const handleCurrentMatchStatus = (data: { isMatching: boolean }) => {
             console.log('[MainPage] Received current_match_status:', data);
             setIsMatching(data.isMatching);
+            
+            // 서버에서 매칭 상태를 받아왔을 때 애니메이션 상태도 업데이트
+            setShowRippleAnimation(data.isMatching);
         };
 
         // 이벤트 리스너 등록
@@ -223,6 +234,12 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             }
         };
     }, [profile?.id, profile?.isWaitingForMatch, fetchCredit, onCreditUpdate]);
+
+    // 매칭 상태가 변경될 때마다 파동 애니메이션 상태 업데이트
+    useEffect(() => {
+        setShowRippleAnimation(isMatching);
+        console.log('[MainPage] 매칭 상태 변경: ', isMatching, ' - 애니메이션 상태: ', showRippleAnimation);
+    }, [isMatching]);
 
     // 매칭 버튼 클릭 핸들러 최적화
     const handleMatchButtonClick = useCallback(async () => {
@@ -261,6 +278,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         // 매칭 취소 또는 시작
         if (isMatching) {
             console.log('[MainPage] Attempting to cancel match...');
+            setShowRippleAnimation(false);
             matchSocket.emit('cancel_match');
         } else {
             console.log('[MainPage] Attempting to start match...');
@@ -272,8 +290,9 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                 return;
             }
             
-            // 매칭 시작
+            // 매칭 시작과 동시에 물방울 파동 애니메이션 활성화
             setIsMatching(true);
+            setShowRippleAnimation(true);
             matchSocket.emit('start_match');
         }
     }, [matchSocket?.connected, isMatching, matchedRoomId, onNavigateToChat, contextCredit]);
@@ -392,41 +411,47 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                        <p>{AppStrings.MAINPAGE_SUBTITLE}</p>
                     </div>
 
+                    {/* 위치 변경: 애니메이션을 화면 중앙에 배치 */}
                     {/* Combined Loading/Error Display */}
                     {isLoadingProfile && <p>프로필 로딩 중...</p>}
                     {/* Display general errors (profile loading, socket connection, match errors) */}
                     {error && !isLoadingProfile && <p className={styles.errorMessage}>{error}</p>}
 
-                    {/* 프로필 로딩 완료 시 성별에 따라 다른 매칭 박스 표시 */}
-                    {!isLoadingProfile && profile && (
-                        profile.gender === 'male' ? (
-                            <MaleMatchingBox
-                                profile={profile}
-                                isMatching={isMatching}
-                                isButtonDisabled={isButtonDisabled}
-                                matchedRoomId={matchedRoomId}
-                                buttonText={buttonText}
-                                isLoadingRoomStatus={isLoadingRoomStatus}
-                                matchSocket={matchSocket}
-                                matchError={matchError}
-                                setMatchError={setMatchError}
-                                setIsMatching={setIsMatching}
-                                onMatchButtonClick={handleMatchButtonClick}
-                                onCreditUpdate={onCreditUpdate}
-                            />
-                        ) : (
-                            <FemaleMatchingBox
-                                profile={profile}
-                                isMatching={isMatching}
-                                isButtonDisabled={isButtonDisabled}
-                                matchedRoomId={matchedRoomId}
-                                buttonText={buttonText}
-                                isLoadingRoomStatus={isLoadingRoomStatus}
-                                matchError={matchError}
-                                onMatchButtonClick={handleMatchButtonClick}
-                            />
-                        )
-                    )}
+                    {/* 매칭 시 물방울 파동 애니메이션을 컨텐츠 박스 위에 배치 */}
+                    <div style={{ position: 'relative' }}>
+                        <CentralRippleAnimation isVisible={showRippleAnimation} />
+                    
+                        {/* 프로필 로딩 완료 시 성별에 따라 다른 매칭 박스 표시 */}
+                        {!isLoadingProfile && profile && (
+                            profile.gender === 'male' ? (
+                                <MaleMatchingBox
+                                    profile={profile}
+                                    isMatching={isMatching}
+                                    isButtonDisabled={isButtonDisabled}
+                                    matchedRoomId={matchedRoomId}
+                                    buttonText={buttonText}
+                                    isLoadingRoomStatus={isLoadingRoomStatus}
+                                    matchSocket={matchSocket}
+                                    matchError={matchError}
+                                    setMatchError={setMatchError}
+                                    setIsMatching={setIsMatching}
+                                    onMatchButtonClick={handleMatchButtonClick}
+                                    onCreditUpdate={onCreditUpdate}
+                                />
+                            ) : (
+                                <FemaleMatchingBox
+                                    profile={profile}
+                                    isMatching={isMatching}
+                                    isButtonDisabled={isButtonDisabled}
+                                    matchedRoomId={matchedRoomId}
+                                    buttonText={buttonText}
+                                    isLoadingRoomStatus={isLoadingRoomStatus}
+                                    matchError={matchError}
+                                    onMatchButtonClick={handleMatchButtonClick}
+                                />
+                            )
+                        )}
+                    </div>
                     
                     {!isLoadingProfile && !profile && !error && (
                          <section className={styles.contentBox}>
