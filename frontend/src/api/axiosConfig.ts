@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+// 프로덕션 환경에서 /api로 설정되도록 baseURL 수정
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 // 기본 axios 인스턴스 생성
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '',
+  baseURL: API_BASE_URL,
   timeout: 10000, // 타임아웃 10초로 설정
   headers: {
     'Content-Type': 'application/json',
