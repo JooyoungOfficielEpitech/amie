@@ -17,6 +17,18 @@ services:
     networks:
       - amie-network
 
+  # Redis 서비스
+  redis:
+    image: redis:alpine
+    container_name: amie-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - amie-network
+
   # 백엔드 서비스
   backend:
     build: 
@@ -28,11 +40,14 @@ services:
       - "3001:3001"
     depends_on:
       - mongodb
+      - redis
     environment:
       - PORT=3001
       - MONGO_URI=mongodb://root:rootpassword@mongodb:27017/amie?authSource=admin
       - NODE_ENV=development
       - JWT_SECRET=user-secret-key
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ./backend/src:/app/src
       - ./backend/public:/app/public
@@ -73,4 +88,6 @@ networks:
 
 volumes:
   mongo-data:
+    driver: local
+  redis-data:
     driver: local 

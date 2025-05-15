@@ -12,6 +12,10 @@ interface UserSocket extends Socket {
 
 // 채팅방 관련 이벤트와 메시지 송수신을 처리하는 클래스
 export class ChatGateway {
+  // 사용자 ID와 소켓 ID를 매핑하는 Map 추가
+  private socketUserMap = new Map<string, string>();
+  private userSocketsMap = new Map<string, Set<string>>();
+  
   constructor(private io: Server) {
     this.initialize();
   }
@@ -24,43 +28,37 @@ export class ChatGateway {
     // --- Authentication Middleware for /chat namespace --- 
     chatNamespace.use(async (socket: UserSocket, next) => {
         console.log('[ChatGateway Auth] Attempting auth...');
+        
         try {
-            const token = socket.handshake.auth.token;
-            console.log('[ChatGateway Auth] Received token:', token ? 'Token received' : 'No token');
-
+            const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
+            
+            console.log(`[ChatGateway Auth] 소켓 연결 시도: ${socket.id}, 토큰 존재: ${!!token}`);
+            
             if (!token) {
-                console.error('[ChatGateway Auth] Error: No token provided.');
-                return next(new Error('Authentication error: No token'));
+                console.log(`[ChatGateway Auth] 인증 토큰 없음: ${socket.id}`);
+                return next(new Error('Authentication token required'));
             }
-
-            let decoded: any;
-            try {
-                decoded = jwt.verify(token, process.env.JWT_SECRET || 'user-secret-key');
-                console.log('[ChatGateway Auth] Token decoded successfully:', decoded);
-            } catch (jwtError: any) {
-                console.error('[ChatGateway Auth] Error: JWT verification failed.', jwtError.message);
-                return next(new Error('Authentication error: Invalid token'));
+            
+            // 토큰 검증 및 사용자 ID 추출
+            const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { id: string };
+            const userId = decoded.id;
+            
+            console.log(`[ChatGateway Auth] 사용자 인증 성공: ${socket.id}, userId: ${userId}`);
+            
+            // 사용자 소켓에 ID 저장
+            socket.userId = userId;
+            
+            // 소켓 ID와 사용자 ID 매핑 저장
+            this.socketUserMap.set(socket.id, userId);
+            
+            // 사용자 ID와 소켓 ID 매핑 저장
+            if (!this.userSocketsMap.has(userId)) {
+                this.userSocketsMap.set(userId, new Set());
             }
-
-            if (!decoded || !decoded.id) {
-                console.error('[ChatGateway Auth] Error: Decoded token is invalid or missing ID.');
-                return next(new Error('Authentication error: Invalid decoded token'));
-            }
-
-            console.log(`[ChatGateway Auth] Finding user with ID: ${decoded.id}`);
-            const user = await User.findById(decoded.id);
-            console.log('[ChatGateway Auth] User found:', user ? user._id : 'Not found');
-
-            if (!user) {
-                console.error('[ChatGateway Auth] Error: User not found in DB.');
-                return next(new Error('Authentication error: User not found'));
-            }
-
-            socket.userId = user._id.toString();
+            this.userSocketsMap.get(userId)?.add(socket.id);
+            
             socket.userInfo = {
-                id: user._id.toString(),
-                nickname: user.nickname,
-                gender: user.gender,
+                id: userId,
             };
             console.log(`[ChatGateway Auth] Auth successful for user: ${socket.userId}`);
             next(); // Proceed to connection handler
@@ -260,7 +258,11 @@ export class ChatGateway {
   // 메시지 전송 처리
   private async handleSendMessage(socket: UserSocket, data: { chatRoomId: string, message: string }) {
     try {
-      if (!socket.userId) return;
+      if (!socket.userId) {
+        console.log(`[ChatGateway] 인증되지 않은 사용자의 메시지 전송 시도: ${socket.id}`);
+        socket.emit('error', { message: '인증되지 않은 사용자입니다.' });
+        return;
+      }
       
       const { chatRoomId, message } = data;
       
@@ -276,13 +278,37 @@ export class ChatGateway {
       });
 
       if (!chatRoom) {
-        return socket.emit('error', { message: '채팅방을 찾을 수 없거나 참여 권한이 없습니다.' });
+        console.log(`[ChatGateway] 채팅방 없음 또는 접근 권한 없음: ${chatRoomId}, 유저=${socket.userId}`);
+        return socket.emit('error', { message: '채팅방을 찾을 수 없거나 접근 권한이 없습니다.' });
       }
+
+      // 사용자 정보 가져오기
+      let userInfo = socket.userInfo;
+      if (!userInfo || !userInfo.nickname) {
+        // 소켓에 유저 정보가 없으면 DB에서 가져옴
+        try {
+          const user = await User.findById(socket.userId);
+          if (user) {
+            userInfo = {
+              nickname: user.nickname || '알 수 없음',
+              gender: user.gender
+            };
+            // 소켓에 저장해서 다음에 또 쓸 수 있게
+            socket.userInfo = userInfo;
+          }
+        } catch (err) {
+          console.error('[handleSendMessage] Error fetching user info:', err);
+        }
+      }
+
+      console.log(`[handleSendMessage] User ${socket.userId} sending message to room ${chatRoomId}`);
 
       // 메시지 저장
       const newMessage = new Message({
         chatRoomId,
-        senderId: socket.userId,
+        senderId: socket.userId, // 반드시 소켓의 사용자 ID 사용
+        senderNickname: userInfo?.nickname || '알 수 없음',
+        senderGender: userInfo?.gender,
         message: message.trim()
       });
       
@@ -292,8 +318,9 @@ export class ChatGateway {
       this.io.of('/chat').to(chatRoomId).emit('new-message', {
         _id: newMessage._id,
         chatRoomId,
-        senderId: socket.userId,
-        senderNickname: socket.userInfo?.nickname,
+        senderId: socket.userId, // 반드시 소켓의 사용자 ID 사용
+        senderNickname: userInfo?.nickname || '알 수 없음',
+        senderGender: userInfo?.gender,
         message: newMessage.message,
         createdAt: newMessage.createdAt
       });
@@ -301,7 +328,7 @@ export class ChatGateway {
       // 채팅방 마지막 업데이트 시간 갱신
       await ChatRoom.findByIdAndUpdate(chatRoomId, { updatedAt: new Date() });
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error(`[ChatGateway] 메시지 전송 오류:`, error);
       socket.emit('error', { message: '메시지 전송 중 오류가 발생했습니다.' });
     }
   }

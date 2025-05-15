@@ -5,6 +5,7 @@ import RechargeModal from '../common/RechargeModal'; // Import RechargeModal
 // Import strings
 import * as AppStrings from '../../constants/strings';
 import { useCredit } from '../../contexts/CreditContext'; // useCredit 훅 추가
+import { useSocket } from '../../contexts/SocketContext'; // 소켓 컨텍스트 추가
 
 // Interface for props - Updated
 interface HeaderProps {
@@ -14,9 +15,9 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ creditBalance: propsCreditBalance }) => {
     const { credit: contextCredit, loading: creditLoading, fetchCredit, charge } = useCredit();
+    const { matchSocket, isConnected } = useSocket(); // 소켓 컨텍스트 사용
     
     const [displayCredit, setDisplayCredit] = useState<number | null>(null);
-    const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
     
     // 컴포넌트 마운트 시 초기 크레딧 데이터 가져오기
     useEffect(() => {
@@ -29,42 +30,41 @@ const Header: React.FC<HeaderProps> = ({ creditBalance: propsCreditBalance }) =>
     
     // 크레딧 상태 변경 감지 및 표시
     useEffect(() => {
-        const now = Date.now();
-        
         // 컨텍스트 크레딧 업데이트가 있을 경우
         if (contextCredit !== undefined && contextCredit !== null) {
             console.log('[Header] Context credit updated:', contextCredit);
             setDisplayCredit(contextCredit);
-            setLastUpdateTime(now);
         } 
         // 백업: 프롭스 크레딧 업데이트가 있을 경우
         else if (propsCreditBalance !== null && propsCreditBalance !== displayCredit) {
             console.log('[Header] Props credit updated:', propsCreditBalance);
             setDisplayCredit(propsCreditBalance);
-            setLastUpdateTime(now);
         }
     }, [contextCredit, propsCreditBalance, displayCredit]);
     
-    // 주기적인 새로고침 (매칭 후 데이터 동기화 보장)
+    // 소켓 이벤트를 통한 크레딧 업데이트 처리
     useEffect(() => {
-        // 마지막 업데이트 후 10초 이상 지났을 때만 자동 새로고침
-        const AUTO_REFRESH_INTERVAL = 10000; // 10초
+        if (!matchSocket || !isConnected) return;
         
-        const refreshTimer = setInterval(async () => {
-            const now = Date.now();
-            // 마지막 업데이트 이후 시간이 충분히 지났으면 갱신
-            if (now - lastUpdateTime > AUTO_REFRESH_INTERVAL) {
-                console.log('[Header] Auto refreshing credit data');
-                try {
-                    await fetchCredit();
-                } catch (err) {
-                    console.error('[Header] Auto refresh error:', err);
-                }
+        console.log('[Header] Setting up socket listeners for credit updates');
+        
+        // 크레딧 업데이트 이벤트 리스너
+        const handleCreditUpdate = (data: { credit: number }) => {
+            console.log('[Header] Received credit update via socket:', data);
+            if (data && typeof data.credit === 'number') {
+                setDisplayCredit(data.credit);
             }
-        }, AUTO_REFRESH_INTERVAL);
+        };
         
-        return () => clearInterval(refreshTimer);
-    }, [fetchCredit, lastUpdateTime]);
+        // 소켓 이벤트 등록
+        matchSocket.on('credit_update', handleCreditUpdate);
+        
+        // 컴포넌트 언마운트 시 이벤트 리스너 제거
+        return () => {
+            console.log('[Header] Cleaning up socket listeners');
+            matchSocket.off('credit_update', handleCreditUpdate);
+        };
+    }, [matchSocket, isConnected]);
 
     // Removed internal state for recharge
     const [isLoadingRecharge, setIsLoadingRecharge] = useState<boolean>(false);
