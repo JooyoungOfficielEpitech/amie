@@ -368,6 +368,28 @@ export class MatchGateway {
       
       logger.info(`토글 스위치 상태 변경: 사용자=${userId}, 활성화=${data.isEnabled}`);
       
+      // 현재 실제 매칭 상태 확인 (토글 전)
+      const currentStatus = await getMatchStatus(userId);
+      const isCurrentlyMatching = currentStatus?.isWaiting || false;
+      
+      // 요청된 상태와 현재 상태가 같으면 중복 요청으로 간주
+      if (data.isEnabled === isCurrentlyMatching) {
+        logger.info(`토글 요청 무시: 사용자=${userId}, 현재 상태와 동일(${data.isEnabled})`);
+        socket.emit('toggle_match_result', { 
+          success: true, 
+          isMatching: isCurrentlyMatching,
+          message: isCurrentlyMatching ? '이미 매칭 중입니다' : '이미 매칭이 취소되었습니다'
+        });
+        
+        // 현재 상태 재전송 (클라이언트 상태 동기화)
+        socket.emit('current_match_status', { 
+          isMatching: isCurrentlyMatching,
+          userId: userId,
+          gender: socket.userInfo?.gender
+        });
+        return;
+      }
+      
       if (data.isEnabled) {
         // 데이터베이스에서 사용자 정보 조회
         const user = await User.findById(userId);
@@ -382,8 +404,19 @@ export class MatchGateway {
           return;
         }
         
+        // 크레딧 확인 (성별 관계없이 모두 확인)
+        if (user.credit < 10) {
+          logger.warn(`토글 매칭 거부: 사용자=${userId}, 크레딧 부족`);
+          socket.emit('toggle_match_result', { 
+            success: false, 
+            isMatching: false,
+            message: '크레딧이 부족합니다'
+          });
+          return;
+        }
+        
         logger.info(`토글 매칭 요청: 사용자=${userId}, 실제 성별=${gender}`);
-        const userInfo = {}; // 필요한 추가 정보
+        const userInfo = { socketId: socket.id }; // 소켓 ID 포함
         
         // 매칭 요청 처리
         const result = await processMatchRequest(userId, gender as Gender, userInfo);
@@ -395,6 +428,9 @@ export class MatchGateway {
             message: '매칭이 시작되었습니다' 
           });
           logger.info(`토글 매칭 시작 성공: 사용자=${userId}`);
+          
+          // 매칭 대기자 목록 관리는 여기서 하지 않고
+          // processMatchRequest 함수 내에서 처리하도록 함
         } else {
           socket.emit('toggle_match_result', { 
             success: false, 
@@ -414,6 +450,9 @@ export class MatchGateway {
             message: '매칭이 취소되었습니다' 
           });
           logger.info(`토글 매칭 취소 성공: 사용자=${userId}`);
+          
+          // 매칭 대기자 목록 관리는 여기서 하지 않고
+          // cancelMatchRequest 함수 내에서 처리하도록 함
         } else {
           socket.emit('toggle_match_result', { 
             success: false, 
@@ -424,17 +463,39 @@ export class MatchGateway {
         }
       }
       
-      // 상태 변경 후 현재 매칭 상태 전송 (UI 동기화 위함)
-      const status = await getMatchStatus(userId);
-      socket.emit('current_match_status', { 
-        isMatching: status?.isMatching || false,
-        userId: userId,
-        gender: socket.userInfo?.gender
-      });
+      // 약간의 지연 후 최종 상태 조회하여 전송 (DB 작업 완료 후)
+      setTimeout(async () => {
+        try {
+          const finalStatus = await getMatchStatus(userId);
+          socket.emit('current_match_status', { 
+            isMatching: finalStatus?.isWaiting || false,
+            userId: userId,
+            gender: socket.userInfo?.gender
+          });
+          logger.info(`토글 후 최종 상태 전송: 사용자=${userId}, 매칭=${finalStatus?.isWaiting || false}`);
+        } catch (error) {
+          logger.error(`토글 후 상태 조회 오류: 사용자=${userId}`, error);
+        }
+      }, 300);
       
     } catch (error) {
       logger.error('토글 스위치 처리 중 오류:', error);
       socket.emit('match_error', { message: '토글 스위치 처리 중 오류가 발생했습니다' });
+      
+      // 오류 발생 시에도 현재 상태 조회하여 전송 (UI 동기화)
+      try {
+        const currentUserId = this.socketUserMap.get(socket.id);
+        if (currentUserId) {
+          const errorStatus = await getMatchStatus(currentUserId);
+          socket.emit('current_match_status', { 
+            isMatching: errorStatus?.isWaiting || false,
+            userId: currentUserId,
+            gender: socket.userInfo?.gender
+          });
+        }
+      } catch (secondError) {
+        logger.error('오류 후 상태 조회 실패:', secondError);
+      }
     }
   }
   
@@ -475,17 +536,31 @@ export class MatchGateway {
 
       console.log(`[MatchGateway] Checking match status for user: ${userId}, gender: ${user.gender}`);
       
-      // Redis와 MongoDB 큐 상태 확인
-      const isWaiting = await isUserWaitingForMatch(userId);
+      // 상태 정보 확인 (Redis와 DB 상태 일관성 확인)
+      const status = await getMatchStatus(userId);
+      const isWaiting = status?.isWaiting || false;
       
-      // 상태 정보 전송 (성별 정보 포함)
+      // 매칭된 채팅방 정보 포함
+      const matchedRoomId = status?.matchedRoomId || null;
+      
+      // 보다 자세한 상태 정보 전송
       socket.emit('current_match_status', { 
         isMatching: isWaiting,
         userId: userId,
-        gender: user.gender
+        gender: user.gender,
+        matchedRoomId: matchedRoomId,
+        credit: user.credit,          // 현재 크레딧 정보도 함께 전송
+        timestamp: Date.now()         // 클라이언트가 응답 시간을 알 수 있도록
       });
       
-      console.log(`[MatchGateway] Sent match status to user ${userId}: isMatching=${isWaiting}`);
+      // 소켓 연결 상태 유지 (필요하다면 matchingUsers 대신 다른 방법으로 구현)
+      if (isWaiting) {
+        // 유저가 매칭 중이면 현재 소켓 정보 캐싱 (간접적으로 메모리 상태 유지)
+        this.userSocketMap.set(userId, socket.id);
+        console.log(`[MatchGateway] Socket mapping updated for waiting user ${userId}`);
+      }
+      
+      console.log(`[MatchGateway] Sent match status to user ${userId}: isMatching=${isWaiting}, matchedRoom=${matchedRoomId || 'none'}`);
     } catch (error) {
       console.error('[MatchGateway] Error in handleCheckMatchStatus:', error);
       socket.emit('match_error', { message: '상태 확인 중 오류가 발생했습니다' });

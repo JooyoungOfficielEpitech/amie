@@ -40,24 +40,22 @@ export async function processMatchRequest(userId: string, gender: Gender, userIn
       };
     }
     
-    // 2. 남성 사용자일 경우 크레딧 확인
-    if (gender === Gender.MALE) {
-      const user = await User.findById(userId);
-      if (!user) {
-        return {
-          success: false,
-          error: 'user_not_found',
-          message: '사용자를 찾을 수 없습니다'
-        };
-      }
-      
-      if (user.credit < REQUIRED_MATCHING_CREDIT) {
-        return {
-          success: false,
-          error: 'insufficient_credit',
-          message: '크레딧이 부족합니다'
-        };
-      }
+    // 2. 사용자의 크레딧 확인 (성별 상관없이 모든 사용자에게 적용)
+    const user = await User.findById(userId);
+    if (!user) {
+      return {
+        success: false,
+        error: 'user_not_found',
+        message: '사용자를 찾을 수 없습니다'
+      };
+    }
+    
+    if (user.credit < REQUIRED_MATCHING_CREDIT) {
+      return {
+        success: false,
+        error: 'insufficient_credit',
+        message: '크레딧이 부족합니다'
+      };
     }
     
     // 3. 즉시 매칭 시도 (상대 성별 대기열 확인)
@@ -218,6 +216,19 @@ export async function createMatch(maleId: string, femaleId: string): Promise<any
       
       // 크레딧 사용 내역 기록 - 선택적
       await recordCreditUsage(maleId, REQUIRED_MATCHING_CREDIT, 'match_creation', roomId);
+      
+      // 여성 사용자 크레딧 차감 추가
+      const femaleUser = await User.findById(femaleId);
+      if (femaleUser) {
+        femaleUser.credit -= REQUIRED_MATCHING_CREDIT;
+        await femaleUser.save();
+        
+        // 여성 사용자 크레딧 사용 내역 기록
+        await recordCreditUsage(femaleId, REQUIRED_MATCHING_CREDIT, 'match_creation', roomId);
+        logger.info(`여성 사용자 ${femaleId} 크레딧 차감: ${REQUIRED_MATCHING_CREDIT}`);
+      } else {
+        logger.warn(`여성 사용자 ${femaleId}를 찾을 수 없어 크레딧 차감 건너뜀`);
+      }
     } catch (error) {
       // 크레딧 차감 실패 시 채팅방 삭제하고 큐에 다시 추가 후 오류 전파
       logger.error('크레딧 차감 실패:', error);

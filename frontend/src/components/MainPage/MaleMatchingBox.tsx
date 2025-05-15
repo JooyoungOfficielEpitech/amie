@@ -7,7 +7,7 @@ import { useCredit } from '../../contexts/CreditContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import './Switch.css';
 import { useCreditCheck } from '../../hooks/useCreditCheck';
-import type { Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 
 // UI strings
 const MALE_SWITCH_LABEL = '자동 매칭 활성화';
@@ -27,7 +27,7 @@ interface MaleMatchingBoxProps {
   matchedRoomId: string | null;
   buttonText: string;
   isLoadingRoomStatus: boolean;
-  matchSocket: Socket | null;
+  matchSocket: typeof Socket | null;
   matchError: string | null;
   setMatchError: (error: string | null) => void;
   setIsMatching: (isMatching: boolean) => void;
@@ -52,6 +52,10 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
   // 상태 변경 디바운싱을 위한 레퍼런스
   const lastStatusCheckRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
+  // 토글 처리 중 상태 추가
+  const [isTogglingInProgress, setIsTogglingInProgress] = useState<boolean>(false);
+  // 토글 쿨다운 타이머 상태 추가
+  const [isToggleCooldown, setIsToggleCooldown] = useState<boolean>(false);
   
   // useCreditCheck 훅 사용하여 크레딧 상태 관리
   const { 
@@ -84,13 +88,27 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
     if (profile?.id) {  // profile이 로드되었는지 확인
       // 로컬 스토리지에서 자동 매칭 상태 확인
       const savedAutoMatchState = localStorage.getItem('isAutoMatchEnabled') === 'true';
-      // 현재 크레딧 기반으로 자동 매칭 활성화 결정 (로컬스토리지 값 + 크레딧 충분)
-      const shouldEnableAutoMatch = savedAutoMatchState && hasSufficientCredit;
       
-      setIsAutoMatchEnabled(shouldEnableAutoMatch);
-      console.log(`[MaleMatchingBox] Initial auto match state: ${shouldEnableAutoMatch} (saved: ${savedAutoMatchState}, sufficient: ${hasSufficientCredit})`);
+      // 초기 상태는 새로고침 시 항상 꺼진 상태로 시작하고
+      // 서버에서 매칭 상태 확인 후 필요 시 켜지도록 함
+      setIsAutoMatchEnabled(false);
+      
+      // 크레딧이 부족한 경우 로컬 스토리지 상태도 초기화
+      if (!hasSufficientCredit && savedAutoMatchState) {
+        console.log('[MaleMatchingBox] Insufficient credit, resetting auto match state in local storage');
+        localStorage.setItem('isAutoMatchEnabled', 'false');
+      }
+      
+      // 실제 매칭 상태는 서버에서 받아올 예정이므로 여기서는 UI만 초기화
+      console.log(`[MaleMatchingBox] Initial auto match UI state reset to false, waiting for server status`);
+      
+      // 소켓 연결되어 있으면 즉시 서버 상태 확인 요청
+      if (matchSocket?.connected) {
+        console.log('[MaleMatchingBox] Socket connected on initial load, requesting match status');
+        matchSocket.emit('check_match_status');
+      }
     }
-  }, [profile?.id, hasSufficientCredit]); // profile 전체 대신 profile.id만 의존성으로 사용
+  }, [profile?.id, hasSufficientCredit, matchSocket]);
   
   // 소켓 이벤트 설정 - 의존성 최적화
   useEffect(() => {
@@ -101,6 +119,9 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
     // 이벤트 핸들러 정의
     const handleMatchError = (errorData: { message: string }) => {
       console.error('[MaleMatchingBox] Match error from server:', errorData.message);
+      
+      // 토글 처리 완료
+      setIsTogglingInProgress(false);
       
       // "이미 매칭 중" 오류는 단순히 상태 동기화로 처리
       if (errorData.message.includes('이미') && errorData.message.includes('대기')) {
@@ -115,19 +136,101 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
     };
     
     const handleMatchCancelled = () => {
+      console.log('[MaleMatchingBox] Match cancelled by server');
       setIsMatching(false);
       setMatchError(null);
+      
+      // 매칭이 취소되면 자동 매칭도 OFF로 설정
+      if (isAutoMatchEnabled) {
+        console.log('[MaleMatchingBox] Server cancelled match, disabling auto match locally');
+        setIsAutoMatchEnabled(false);
+        localStorage.setItem('isAutoMatchEnabled', 'false');
+      }
+      
+      // 토글 처리 중이었다면 완료 처리
+      setIsTogglingInProgress(false);
     };
     
-    const handleMatchStatus = (data: { isMatching: boolean, userId: string }) => {
-      // 서버 상태에 따라 클라이언트 상태 업데이트 (불필요한 로그 제거)
-      setIsMatching(data.isMatching);
+    const handleMatchStatus = (data: { isMatching: boolean, userId: string, timestamp?: number, credit?: number }) => {
+      // 서버 상태에 따라 클라이언트 상태 업데이트
+      console.log('[MaleMatchingBox] Received current_match_status:', data);
+      
+      // 토글 처리 완료
+      setIsTogglingInProgress(false);
+      
+      // 1. 먼저 서버 매칭 상태를 UI에 반영
+      if (data.isMatching !== isMatching) {
+        console.log(`[MaleMatchingBox] Synchronizing match state with server: ${data.isMatching}`);
+        setIsMatching(data.isMatching);
+      }
+      
+      // 2. 자동 매칭 스위치와 서버 매칭 상태 동기화 우선순위 조정
+      // 서버가 매칭 중이라고 하면 무조건 스위치 ON
+      if (data.isMatching) {
+        if (!isAutoMatchEnabled && hasSufficientCredit) {
+          console.log('[MaleMatchingBox] Server says user is matching, enabling auto match locally');
+          setIsAutoMatchEnabled(true);
+          localStorage.setItem('isAutoMatchEnabled', 'true');
+          
+          // 상태가 변경되면 쿨다운 설정 (2초)
+          setIsToggleCooldown(true);
+          setTimeout(() => {
+            setIsToggleCooldown(false);
+          }, 2000);
+        }
+      } 
+      // 서버가 매칭 중이 아니라고 하면 무조건 스위치 OFF (새로고침 시 우선순위)
+      else {
+        if (isAutoMatchEnabled) {
+          console.log('[MaleMatchingBox] Server says user is NOT matching, disabling auto match locally');
+          setIsAutoMatchEnabled(false);
+          localStorage.setItem('isAutoMatchEnabled', 'false');
+          
+          // 상태가 변경되면 쿨다운 설정 (2초)
+          setIsToggleCooldown(true);
+          setTimeout(() => {
+            setIsToggleCooldown(false);
+          }, 2000);
+        }
+      }
+      
+      // 서버가 크레딧 정보도 보내주면 업데이트
+      if (data.credit !== undefined && data.credit !== profile?.credit) {
+        console.log(`[MaleMatchingBox] Server reported updated credit: ${data.credit}`);
+        refreshCredit().catch(err => {
+          console.error('[MaleMatchingBox] Error refreshing credit after status update:', err);
+        });
+      }
     };
     
     const handleToggleResult = (result: { success: boolean, isMatching: boolean, message: string }) => {
+      console.log('[MaleMatchingBox] Received toggle_match_result:', result);
+      
+      // 토글 처리 완료
+      setIsTogglingInProgress(false);
+      
       // 성공 시 상태 업데이트
       if (result.success) {
-        setIsMatching(result.isMatching);
+        // 서버 상태에 맞게 매칭 상태 업데이트
+        if (result.isMatching !== isMatching) {
+          console.log(`[MaleMatchingBox] Updating matching state to: ${result.isMatching}`);
+          setIsMatching(result.isMatching);
+        }
+        
+        // 자동 매칭 스위치 상태도 서버 매칭 상태에 맞게 동기화
+        // 서버 매칭 상태가 true면 자동 매칭도 true여야 함
+        if (result.isMatching !== isAutoMatchEnabled) {
+          console.log(`[MaleMatchingBox] Synchronizing auto match UI state with server: ${result.isMatching}`);
+          setIsAutoMatchEnabled(result.isMatching);
+          localStorage.setItem('isAutoMatchEnabled', result.isMatching ? 'true' : 'false');
+          
+          // 토글 성공 후 쿨다운 설정 (2초)
+          setIsToggleCooldown(true);
+          setTimeout(() => {
+            setIsToggleCooldown(false);
+          }, 2000);
+        }
+        
         setMatchError(null);
         
         // 상태가 변경되었을 때만 크레딧 정보 업데이트
@@ -143,7 +246,22 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         }
       } else {
         // 실패 시 에러 메시지 표시
+        console.error('[MaleMatchingBox] Toggle failed:', result.message);
         setMatchError(result.message);
+        
+        // 실패 시 로컬 자동 매칭 상태를 서버 상태와 동기화
+        const correctState = !result.isMatching;
+        console.log(`[MaleMatchingBox] Reverting auto match state to: ${correctState}`);
+        setIsAutoMatchEnabled(correctState);
+        localStorage.setItem('isAutoMatchEnabled', correctState ? 'true' : 'false');
+        
+        // 즉시 상태 확인 요청하여 정확한 서버 상태와 동기화
+        if (matchSocket?.connected) {
+          console.log('[MaleMatchingBox] Requesting current match status after toggle failure');
+          setTimeout(() => {
+            matchSocket.emit('check_match_status');
+          }, 500); // 약간의 지연을 두고 상태 확인
+        }
       }
     };
     
@@ -172,7 +290,7 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         matchSocket.off('toggle_match_result');
       }
     };
-  }, [matchSocket?.connected, setMatchError, setIsMatching, refreshCredit, onCreditUpdate]); // 소켓 객체 자체가 아닌 connected 상태에만 의존
+  }, [matchSocket?.connected, setMatchError, setIsMatching, refreshCredit, onCreditUpdate, isAutoMatchEnabled]); // 의존성 배열에 isAutoMatchEnabled 추가
 
   // 매칭 상태 확인 후 안전하게 매칭 시작하는 Promise 기반 함수 - useCallback으로 메모이제이션
   const checkMatchStatusAndStart = useCallback((): Promise<void> => {
@@ -342,6 +460,18 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
   
   // 자동 매칭 토글 시 처리 - useCallback으로 메모이제이션
   const handleToggleAutoMatch = useCallback(() => {
+    // 이미 토글 처리 중이면 무시
+    if (isTogglingInProgress) {
+      console.log('[MaleMatchingBox] Toggle already in progress, ignoring');
+      return;
+    }
+    
+    // 쿨다운 중이면 무시
+    if (isToggleCooldown) {
+      console.log('[MaleMatchingBox] Toggle in cooldown period, ignoring');
+      return;
+    }
+    
     // 크레딧 충분한지 먼저 확인
     if (!isAutoMatchEnabled && !hasSufficientCredit) {
       console.log('[MaleMatchingBox] Cannot enable auto match: insufficient credit');
@@ -350,30 +480,49 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
     }
     
     const newState = !isAutoMatchEnabled;
-    console.log(`[MaleMatchingBox] Auto match toggled to: ${newState}`);
-    
-    // 로컬 스토리지에 자동 매칭 상태 저장
-    localStorage.setItem('isAutoMatchEnabled', newState ? 'true' : 'false');
+    console.log(`[MaleMatchingBox] Auto match toggle requested: ${newState}`);
     
     // 서버에 토글 상태 변경 이벤트 전송
     if (matchSocket?.connected) {
       console.log('[MaleMatchingBox] Sending toggle_match event to server:', newState);
       
-      // 토글 이벤트 전송 (새로운 방식)
-      matchSocket.emit('toggle_match', {
-        isEnabled: newState,
-        gender: profile?.gender || 'MALE'
-      });
+      // 토글 요청 중임을 표시 (스위치 비활성화)
+      setIsTogglingInProgress(true);
       
-      // 상태 변경은 서버에서 받는 응답에 따라 처리됨
+      // 토글 전에 먼저 서버의 현재 상태 확인
+      matchSocket.emit('check_match_status');
+      
+      // 짧은 지연 후 토글 요청 전송 (서버 상태 확인 후)
+      setTimeout(() => {
+        if (matchSocket?.connected) {
+          // 토글 이벤트 전송 (새로운 방식)
+          matchSocket.emit('toggle_match', {
+            isEnabled: newState,
+            gender: profile?.gender || 'male'
+          });
+          
+          // 임시로 UI에만 반영 (로컬 스토리지 업데이트는 서버 응답 후)
+          setIsAutoMatchEnabled(newState);
+          
+          // 서버 응답이 없는 경우를 대비해 짧은 타임아웃 후 상태 확인
+          setTimeout(() => {
+            if (isTogglingInProgress) {
+              console.log('[MaleMatchingBox] Toggle response timeout, checking server status');
+              setIsTogglingInProgress(false);
+              matchSocket.emit('check_match_status');
+            }
+          }, 3000); // 타임아웃 시간 증가
+        } else {
+          // 소켓 연결이 끊어진 경우
+          setIsTogglingInProgress(false);
+          setMatchError('서버에 연결되어 있지 않습니다');
+        }
+      }, 500); // 서버 상태 확인 후 토글 요청 지연
     } else {
       console.error('[MaleMatchingBox] Cannot toggle match: socket not connected');
       setMatchError('서버에 연결되어 있지 않습니다');
     }
-    
-    // 로컬 UI 즉시 업데이트 (서버 응답을 기다리지 않고)
-    setIsAutoMatchEnabled(newState);
-  }, [isAutoMatchEnabled, hasSufficientCredit, matchSocket?.connected, profile?.gender, setMatchError]);
+  }, [isAutoMatchEnabled, hasSufficientCredit, matchSocket?.connected, profile?.gender, setMatchError, isTogglingInProgress, isToggleCooldown]); // 의존성 배열에 isToggleCooldown 추가
 
   // 자동 매칭 스위치 비활성화 조건 - useMemo로 메모이제이션
   const isToggleDisabled = useMemo(() => (
@@ -381,15 +530,40 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
     !matchSocket?.connected || 
     isLoadingRoomStatus || 
     (!isAutoMatchEnabled && !hasSufficientCredit) ||
-    isCreditLoading
+    isCreditLoading ||
+    isTogglingInProgress ||
+    isToggleCooldown // 쿨다운 상태 추가
   ), [
     isButtonDisabled, 
     matchSocket?.connected, 
     isLoadingRoomStatus, 
     isAutoMatchEnabled, 
     hasSufficientCredit,
-    isCreditLoading
+    isCreditLoading,
+    isTogglingInProgress,
+    isToggleCooldown // 의존성 배열에 추가
   ]);
+
+  // 컴포넌트 마운트 시 서버에서 현재 매칭 상태를 확인하는 useEffect
+  useEffect(() => {
+    // 서버에 연결되어 있지 않으면 건너뜀
+    if (!matchSocket?.connected) return;
+    
+    console.log('[MaleMatchingBox] Component mounted, checking server match status');
+    
+    // 페이지 로딩 시 항상 서버 상태 확인
+    matchSocket.emit('check_match_status');
+    
+    // 만약 서버 응답이 없는 경우를 대비해 타임아웃 설정
+    const timeout = setTimeout(() => {
+      if (matchSocket.connected) {
+        console.log('[MaleMatchingBox] No status response received, requesting again');
+        matchSocket.emit('check_match_status');
+      }
+    }, 2000);
+    
+    return () => clearTimeout(timeout);
+  }, [matchSocket?.connected]); // 소켓 연결 상태가 변경될 때만 실행
 
   return (
     <section className={styles.contentBox}>
@@ -403,7 +577,7 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         <label className="switch-label">
           {MALE_SWITCH_LABEL}
         </label>
-        <div className={`toggle-switch ${isAutoMatchEnabled ? 'active' : ''}`}>
+        <div className={`toggle-switch ${isAutoMatchEnabled ? 'active' : ''} ${isToggleCooldown ? 'cooldown' : ''}`}>
           <input
             type="checkbox"
             checked={isAutoMatchEnabled}
@@ -417,6 +591,13 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
             <span className="toggle-switch-switch"></span>
           </label>
         </div>
+        
+        {/* 쿨다운 표시 */}
+        {isToggleCooldown && (
+          <span className="cooldown-indicator" style={{ color: '#ff9800', fontWeight: 'bold' }}>
+            잠시 기다려주세요...
+          </span>
+        )}
         
         {/* 현재 상태 표시 */}
         {isMatching && (
