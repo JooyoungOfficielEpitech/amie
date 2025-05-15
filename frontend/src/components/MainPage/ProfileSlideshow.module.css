@@ -1,0 +1,86 @@
+.slideshowContainer {
+  position: fixed;
+  top: auto; /* top 속성 제거 */
+  bottom: 0; /* 맨 아래에 배치 */
+  right: 0;
+  width: 300px;
+  height: 100vh; /* 전체 높이 유지 */
+  pointer-events: none; /* 클릭 이벤트 통과 */
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: 20px; /* 상하 패딩 줄임 */
+  overflow: hidden;
+  justify-content: flex-end; /* 컨텐츠를 아래쪽에 정렬 */
+}
+
+.profileSlideshow {
+  display: flex;
+  flex-direction: column;
+  height: 90vh; /* 높이를 늘려 더 많은 공간 활용 */
+  overflow: hidden; /* 넘치는 부분 감춤 */
+  position: relative;
+  margin-bottom: 10px; /* 하단 여백 줄임 */
+}
+
+.profileInnerContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 40px; /* 카드 간격 늘림 */
+  will-change: transform; /* 애니메이션 성능 향상 */
+  align-items: flex-end; /* 오른쪽 정렬 */
+}
+
+.profileCard {
+  width: 180px;
+  height: 240px;
+  border-radius: 15px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-left: auto;
+  flex-shrink: 0;
+  will-change: transform;
+  filter: blur(4px);
+  transition: filter 0.5s ease;
+}
+
+.profileCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(254, 70, 108, 0.1);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.profileInfo {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 15px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: white;
+  text-align: left;
+  z-index: 2;
+  filter: blur(0);
+  backdrop-filter: blur(0);
+}
+
+.profileName {
+  font-weight: bold;
+  font-size: 18px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.profileAge {
+  font-size: 16px;
+  margin-top: 4px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+} 
