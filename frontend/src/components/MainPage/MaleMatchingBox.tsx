@@ -53,6 +53,11 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
   // 토글 쿨다운 타이머 상태 추가
   const [isToggleCooldown, setIsToggleCooldown] = useState<boolean>(false);
   
+  // 드래그 관련 상태 추가
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [dragPosition, setDragPosition] = useState<number>(0);
+  
   // useCreditCheck 훅 사용하여 크레딧 상태 관리
   const { 
     hasSufficientCredit, 
@@ -561,6 +566,121 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
     return () => clearTimeout(timeout);
   }, [matchSocket?.connected]); // 소켓 연결 상태가 변경될 때만 실행
 
+  // 드래그 처리 함수
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (isToggleDisabled) return;
+    
+    // 드래그 시작
+    setIsDragging(true);
+    
+    // 터치이벤트와 마우스이벤트 구분
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const sliderRect = sliderRef.current?.getBoundingClientRect();
+    
+    if (sliderRect) {
+      // 현재 위치 계산 (0 ~ 1 사이의 값)
+      const position = (clientX - sliderRect.left) / sliderRect.width;
+      setDragPosition(Math.max(0, Math.min(1, position)));
+    }
+    
+    // 이벤트 전파 방지
+    e.preventDefault();
+    e.stopPropagation();
+  }, [isToggleDisabled]);
+  
+  const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!isDragging) return;
+    
+    // 터치이벤트와 마우스이벤트 구분
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const sliderRect = sliderRef.current?.getBoundingClientRect();
+    
+    if (sliderRect) {
+      // 현재 위치 계산 (0 ~ 1 사이의 값)
+      const position = (clientX - sliderRect.left) / sliderRect.width;
+      setDragPosition(Math.max(0, Math.min(1, position)));
+    }
+    
+    // 이벤트 전파 방지
+    e.preventDefault();
+    e.stopPropagation();
+  }, [isDragging]);
+  
+  const handleDragEnd = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!isDragging) return;
+    
+    // 드래그 종료
+    setIsDragging(false);
+    
+    // 위치에 따라 토글 상태 변경
+    if (dragPosition > 0.7 && !isAutoMatchEnabled) {
+      // OFF -> ON으로 변경
+      handleToggleAutoMatch();
+    } else if (dragPosition < 0.3 && isAutoMatchEnabled) {
+      // ON -> OFF로 변경
+      handleToggleAutoMatch();
+    }
+    
+    // 드래그 위치 초기화
+    setDragPosition(0);
+    
+    // 이벤트 전파 방지
+    e.preventDefault();
+    e.stopPropagation();
+  }, [isDragging, dragPosition, isAutoMatchEnabled, handleToggleAutoMatch]);
+  
+  // 전역 마우스/터치 이벤트 등록
+  useEffect(() => {
+    // 드래그 중일 때만 이벤트 리스너 등록
+    if (isDragging) {
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('touchmove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+      window.addEventListener('touchend', handleDragEnd);
+    }
+    
+    return () => {
+      // 컴포넌트 언마운트 또는 드래그 종료 시 이벤트 리스너 제거
+      window.removeEventListener('mousemove', handleDragMove);
+      window.removeEventListener('touchmove', handleDragMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchend', handleDragEnd);
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+  
+  // 드래그 중인 슬라이더 핸들 위치 계산
+  const handlePosition = useMemo(() => {
+    if (!isDragging) {
+      return isAutoMatchEnabled ? 'calc(100% - 40px)' : '4px';
+    }
+    
+    // 드래그 중일 때는 위치에 따라 계산
+    const maxPosition = sliderRef.current?.clientWidth || 140;
+    const handleSize = 36; // 핸들 크기
+    const padding = 4; // 패딩
+    
+    // 슬라이더 내에서 핸들이 이동할 수 있는 최대 범위
+    const maxHandlePosition = maxPosition - handleSize - padding * 2;
+    
+    // 현재 드래그 위치에 따른 핸들 위치 계산
+    return `${padding + dragPosition * maxHandlePosition}px`;
+  }, [isDragging, isAutoMatchEnabled, dragPosition]);
+  
+  // 슬라이더 배경 색상 계산
+  const sliderBackground = useMemo(() => {
+    if (!isDragging) {
+      return isAutoMatchEnabled ? '#FE466C' : '#ddd';
+    }
+    
+    // 드래그 중일 때는 위치에 따라 점진적으로 색상 변경
+    if (dragPosition > 0.5) {
+      // 0.5 이상이면 점점 활성화 색상으로
+      const intensity = (dragPosition - 0.5) * 2; // 0.5 ~ 1.0 -> 0 ~ 1.0
+      return `rgba(254, 70, 108, ${intensity})`;
+    }
+    return '#ddd';
+  }, [isDragging, isAutoMatchEnabled, dragPosition]);
+
   return (
     <section className={styles.contentBox}>
       <div className={styles.profileHeader}>
@@ -568,12 +688,18 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         <span className={styles.statusBadge}>{profile.isActive ? AppStrings.MAINPAGE_STATUS_ACTIVE : '비활성'}</span>
       </div>
       
-      {/* 남성 사용자용 UI - 스위치 방식 */}
+      {/* 남성 사용자용 UI - 슬라이더 방식 */}
       <div className="switch-container">
         <label className="switch-label">
           {MALE_SWITCH_LABEL}
         </label>
-        <div className={`toggle-switch ${isAutoMatchEnabled ? 'active' : ''} ${isToggleCooldown ? 'cooldown' : ''}`}>
+        <div 
+          ref={sliderRef}
+          className={`toggle-switch ${isAutoMatchEnabled ? 'active' : ''} ${isToggleCooldown ? 'cooldown' : ''}`}
+          style={{ background: sliderBackground }}
+          onMouseDown={handleDragStart}
+          onTouchStart={handleDragStart}
+        >
           <input
             type="checkbox"
             checked={isAutoMatchEnabled}
@@ -583,9 +709,16 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
             id="matchSwitch"
           />
           <label className="toggle-switch-label" htmlFor="matchSwitch">
-            <span className="toggle-switch-inner"></span>
-            <span className="toggle-switch-switch"></span>
+            <span 
+              className="toggle-switch-switch" 
+              style={{ left: handlePosition }}
+            ></span>
           </label>
+        </div>
+        
+        {/* 상태 텍스트 표시 */}
+        <div className="switch-status-text">
+          {isAutoMatchEnabled ? 'ON' : 'OFF'}
         </div>
         
         {/* 쿨다운 표시 */}
