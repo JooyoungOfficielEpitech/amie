@@ -87,7 +87,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // 인증 정보(토큰, 유저ID)가 변경될 때마다 소켓 재연결
   useEffect(() => {
-    const socket = initSocket();
+    initSocket();
     
     // 컴포넌트 언마운트 시 정리
     return () => {

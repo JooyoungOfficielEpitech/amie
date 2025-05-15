@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import styles from './MainPage.module.css';
-import { UserProfile, userApi } from '../../api';
 import * as AppStrings from '../../constants/strings';
-import { usePayment } from '../../contexts/PaymentContext';
-import { useCredit } from '../../contexts/CreditContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import './Switch.css';
 import { useCreditCheck } from '../../hooks/useCreditCheck';
 import { Socket } from 'socket.io-client';
+import { UserProfile } from '../../api';
 
 // UI strings
 const MALE_SWITCH_LABEL = '자동 매칭 활성화';
@@ -16,8 +14,6 @@ const CREDIT_INSUFFICIENT = '크레딧 부족';
 // 매칭에 필요한 크레딧
 const REQUIRED_MATCHING_CREDIT = 10;
 
-// 자동 매칭 내부 플래그 (결제 모달 표시 여부)
-const AUTO_MATCH_INIT_KEY = 'autoMatchInitialized';
 
 // --- 남성용 매칭 박스 Props 정의 ---
 interface MaleMatchingBoxProps {

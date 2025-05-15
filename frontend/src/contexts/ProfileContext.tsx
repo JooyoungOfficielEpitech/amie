@@ -36,19 +36,19 @@ interface ProfileProviderProps {
 }
 
 export const ProfileProvider: React.FC<ProfileProviderProps> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isLoggedIn } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // 인증 상태가 변경되면 프로필 정보 불러오기
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isLoggedIn) {
       fetchProfile();
     } else {
       setProfile(null);
     }
-  }, [isAuthenticated]);
+  }, [isLoggedIn]);
 
   const fetchProfile = async () => {
     setLoading(true);

@@ -15,7 +15,7 @@ declare global {
 }
 
 // 사용자 JWT 인증 미들웨어
-export const authenticateJWT = async (req: Request, res: Response, next: NextFunction) => {
+export const authenticateJWT = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let token;
 
   // Authorization 헤더에서 Bearer 토큰 추출
@@ -31,42 +31,46 @@ export const authenticateJWT = async (req: Request, res: Response, next: NextFun
 
       if (!req.user) {
         logger.warn(`인증 실패: 사용자 ID=${decoded.id}를 찾을 수 없음`);
-        return res.status(401).json({
+        res.status(401).json({
           success: false,
           error: 'user_not_found',
           message: '인증 실패: 사용자를 찾을 수 없습니다'
         });
+        return;
       }
 
       next();
     } catch (error) {
       logger.error('JWT 인증 오류:', error);
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: 'invalid_token',
         message: '인증되지 않았습니다'
       });
+      return;
     }
   } else {
     logger.warn('토큰이 제공되지 않음');
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       error: 'no_token',
       message: '인증 토큰이 필요합니다'
     });
+    return;
   }
 };
 
 // 관리자 권한 확인 미들웨어
-export const isAdmin = async (req: Request, res: Response, next: NextFunction) => {
+export const isAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     // 먼저 사용자 인증 확인
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: 'not_authenticated',
         message: '인증이 필요합니다'
       });
+      return;
     }
     
     // 관리자 DB에서 확인
@@ -74,11 +78,12 @@ export const isAdmin = async (req: Request, res: Response, next: NextFunction) =
     
     if (!admin) {
       logger.warn(`관리자 권한 거부: 사용자=${req.user._id}`);
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         error: 'forbidden',
         message: '관리자 권한이 필요합니다'
       });
+      return;
     }
     
     // 관리자 정보 추가
@@ -86,10 +91,11 @@ export const isAdmin = async (req: Request, res: Response, next: NextFunction) =
     next();
   } catch (error) {
     logger.error('관리자 권한 확인 중 오류:', error);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       error: 'internal_error',
       message: '서버 오류가 발생했습니다'
     });
+    return;
   }
 }; 

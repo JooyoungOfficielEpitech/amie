@@ -47,7 +47,7 @@ interface CreditProviderProps {
   onCreditUpdate?: () => Promise<void>;
 }
 
-export const CreditProvider: React.FC<CreditProviderProps> = ({ children, onCreditUpdate }) => {
+export const CreditProvider: React.FC<CreditProviderProps> = ({ children }) => {
   const { token, userId } = useAuth();
   const [credit, setCredit] = useState<number>(0);
   const [logs, setLogs] = useState<CreditLog[]>([]);
@@ -61,7 +61,7 @@ export const CreditProvider: React.FC<CreditProviderProps> = ({ children, onCred
   const cachedCreditRef = useRef<number>(0);
   
   // 크레딧 업데이트 콜백 실행 중복 방지
-  const isUpdatingRef = useRef<boolean>(false);
+  useRef<boolean>(false);
 
   // 인증 상태가 변경되면 크레딧 정보 불러오기
   useEffect(() => {

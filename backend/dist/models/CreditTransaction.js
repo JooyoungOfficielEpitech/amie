@@ -32,52 +32,35 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminRole = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const uuid_1 = require("uuid");
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-var AdminRole;
-(function (AdminRole) {
-    AdminRole["ADMIN"] = "admin";
-})(AdminRole || (exports.AdminRole = AdminRole = {}));
-const AdminSchema = new mongoose_1.Schema({
-    _id: {
-        type: String,
-        default: uuid_1.v4
-    },
-    email: {
-        type: String,
+const creditTransactionSchema = new mongoose_1.Schema({
+    userId: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'User',
         required: true,
-        unique: true,
-        trim: true,
-        lowercase: true
+        index: true
     },
-    passwordHash: {
+    amount: {
+        type: Number,
+        required: true
+    },
+    type: {
+        type: String,
+        enum: ['ADDITION', 'DEDUCTION'],
+        required: true
+    },
+    reason: {
         type: String,
         required: true
     },
-    role: {
-        type: String,
-        enum: Object.values(AdminRole),
-        default: AdminRole.ADMIN
+    balanceAfter: {
+        type: Number,
+        required: true
     }
 }, {
     timestamps: true
 });
-// 비밀번호 비교 메서드
-AdminSchema.methods.comparePassword = async function (candidatePassword) {
-    return bcryptjs_1.default.compare(candidatePassword, this.passwordHash);
-};
-// 비밀번호 해싱 미들웨어
-AdminSchema.pre('save', async function (next) {
-    if (this.isModified('passwordHash')) {
-        const salt = await bcryptjs_1.default.genSalt(10);
-        this.passwordHash = await bcryptjs_1.default.hash(this.passwordHash, salt);
-    }
-    next();
-});
-exports.default = mongoose_1.default.model('Admin', AdminSchema);
+// 인덱스 생성 - 사용자별 조회 최적화
+creditTransactionSchema.index({ userId: 1, createdAt: -1 });
+exports.default = mongoose_1.default.model('CreditTransaction', creditTransactionSchema);

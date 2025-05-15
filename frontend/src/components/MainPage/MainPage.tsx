@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import styles from './MainPage.module.css';
 import Sidebar from './Sidebar';
 import { userApi, UserProfile, chatApi } from '../../api';
-import { creditApi } from '../../api/creditApi'; // 크레딧 API 직접 임포트
 import amieLogo from '../../assets/amie_logo.png';
 import * as AppStrings from '../../constants/strings';
 import io from "socket.io-client";

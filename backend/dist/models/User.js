@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SocialProvider = exports.Gender = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const uuid_1 = require("uuid");
-const bcrypt_1 = __importDefault(require("bcrypt"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 var Gender;
 (function (Gender) {
     Gender["MALE"] = "male";
@@ -129,13 +129,13 @@ const UserSchema = new mongoose_1.Schema({
 UserSchema.methods.comparePassword = async function (candidatePassword) {
     if (!this.passwordHash)
         return false;
-    return bcrypt_1.default.compare(candidatePassword, this.passwordHash);
+    return bcryptjs_1.default.compare(candidatePassword, this.passwordHash);
 };
 // 비밀번호 해싱 미들웨어
 UserSchema.pre('save', async function (next) {
     if (this.isModified('passwordHash') && this.passwordHash) {
-        const salt = await bcrypt_1.default.genSalt(10);
-        this.passwordHash = await bcrypt_1.default.hash(this.passwordHash, salt);
+        const salt = await bcryptjs_1.default.genSalt(10);
+        this.passwordHash = await bcryptjs_1.default.hash(this.passwordHash, salt);
     }
     next();
 });
