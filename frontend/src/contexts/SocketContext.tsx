@@ -38,7 +38,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     console.log('소켓 연결 초기화 중...');
     
     // 소켓 연결 설정
-    const socket = io(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/match`, {
+    const socket = io(`${import.meta.env.VITE_API_BASE_URL || '/api'}/match`, {
       auth: { token },
       transports: ['websocket'],
       reconnectionAttempts: Infinity,
