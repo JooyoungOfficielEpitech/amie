@@ -9,7 +9,7 @@ import { logger } from '../utils/logger';
 import { Gender } from '../models/User';
 
 // 매칭 요청 처리
-export async function requestMatch(req: Request, res: Response) {
+export async function requestMatch(req: Request, res: Response): Promise<Response> {
   try {
     const userId = req.user?.id;
     const { gender } = req.user as { gender: Gender };
@@ -41,7 +41,7 @@ export async function requestMatch(req: Request, res: Response) {
 }
 
 // 매칭 취소 처리
-export async function cancelMatch(req: Request, res: Response) {
+export async function cancelMatch(req: Request, res: Response): Promise<Response> {
   try {
     const userId = req.user?.id;
     
@@ -71,7 +71,7 @@ export async function cancelMatch(req: Request, res: Response) {
 }
 
 // 매칭 상태 조회
-export async function checkMatchStatus(req: Request, res: Response) {
+export async function checkMatchStatus(req: Request, res: Response): Promise<Response> {
   try {
     const userId = req.user?.id;
     
@@ -101,7 +101,7 @@ export async function checkMatchStatus(req: Request, res: Response) {
 }
 
 // 배치 매칭 처리 (관리자용 또는 스케줄러용)
-export async function runBatchMatching(req: Request, res: Response) {
+export async function runBatchMatching(req: Request, res: Response): Promise<Response> {
   try {
     // 관리자 권한 체크는 미들웨어로 처리한다고 가정
     const result = await processBatchMatching();

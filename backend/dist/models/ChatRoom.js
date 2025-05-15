@@ -42,17 +42,23 @@ const ChatRoomSchema = new mongoose_1.Schema({
     },
     user1Id: {
         type: String,
+        ref: 'User',
         required: true,
-        ref: 'User'
+        index: true
     },
     user2Id: {
         type: String,
+        ref: 'User',
         required: true,
-        ref: 'User'
+        index: true
     },
     isActive: {
         type: Boolean,
-        default: true
+        default: true,
+        index: true
+    },
+    lastMessageAt: {
+        type: Date
     },
     unlockedSlotsUser1: {
         type: [Number],
@@ -77,4 +83,25 @@ ChatRoomSchema.index({
 // 사용자가 참여한 모든 채팅방을 빠르게 조회할 수 있도록 인덱스 설정
 ChatRoomSchema.index({ user1Id: 1, isActive: 1 });
 ChatRoomSchema.index({ user2Id: 1, isActive: 1 });
+ChatRoomSchema.index({ createdAt: -1 });
+// 정적 메서드 - 사용자 ID로 활성 채팅방 찾기
+ChatRoomSchema.statics.findActiveRoomsByUserId = function (userId) {
+    return this.find({
+        $or: [
+            { user1Id: userId },
+            { user2Id: userId }
+        ],
+        isActive: true
+    }).sort({ lastMessageAt: -1, createdAt: -1 });
+};
+// 정적 메서드 - 두 사용자 사이의 활성 채팅방 찾기
+ChatRoomSchema.statics.findActiveRoomBetweenUsers = function (user1Id, user2Id) {
+    return this.findOne({
+        $or: [
+            { user1Id: user1Id, user2Id: user2Id },
+            { user1Id: user2Id, user2Id: user1Id }
+        ],
+        isActive: true
+    });
+};
 exports.default = mongoose_1.default.model('ChatRoom', ChatRoomSchema);

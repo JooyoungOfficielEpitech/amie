@@ -1,456 +1,524 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MatchGateway = void 0;
-const User_1 = __importDefault(require("../models/User"));
-const MatchQueue_1 = __importDefault(require("../models/MatchQueue"));
-const ChatRoom_1 = __importDefault(require("../models/ChatRoom"));
-const creditService_1 = require("../services/creditService");
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-// 매칭 관련 이벤트를 처리하는 클래스
+const matching_service_1 = require("../services/matching.service");
+const logger_1 = require("../utils/logger");
+const redis_service_1 = require("../services/redis.service");
+const User_1 = __importStar(require("../models/User"));
+const credit_service_1 = require("../services/credit.service");
 class MatchGateway {
     constructor(io) {
-        this.io = io;
-        this.MATCHING_CREDIT_COST = 10; // 매칭에 필요한 크레딧
-        this.creditService = new creditService_1.CreditService(); // 추가: 크레딧 서비스 인스턴스 생성
-        this.matchingUsers = new Map(); // 매칭 대기중인 사용자들
-        this.matchingInterval = null;
-        this.initialize();
-    }
-    // 초기화 및 이벤트 리스너 설정
-    async initialize() {
+        // 사용자 ID와 소켓 ID를 매핑하는 객체
+        this.userSocketMap = new Map();
+        this.socketUserMap = new Map();
         // 매칭 네임스페이스 설정
-        const matchNamespace = this.io.of('/match');
-        // --- Authentication logic directly within the namespace connection handler ---
-        matchNamespace.use(async (socket, next) => {
-            console.log('[MatchGateway Auth] Attempting auth...');
-            try {
-                const token = socket.handshake.auth.token;
-                console.log('[MatchGateway Auth] Received token:', token ? 'Token received' : 'No token');
-                if (!token) {
-                    console.error('[MatchGateway Auth] Error: No token provided.');
-                    return next(new Error('Authentication error: No token')); // Use next(error) for namespace middleware
-                }
-                let decoded;
-                try {
-                    decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'user-secret-key');
-                    console.log('[MatchGateway Auth] Token decoded successfully:', decoded);
-                }
-                catch (jwtError) {
-                    console.error('[MatchGateway Auth] Error: JWT verification failed.', jwtError.message);
-                    return next(new Error('Authentication error: Invalid token'));
-                }
-                if (!decoded || !decoded.id) {
-                    console.error('[MatchGateway Auth] Error: Decoded token is invalid or missing ID.');
-                    return next(new Error('Authentication error: Invalid decoded token'));
-                }
-                console.log(`[MatchGateway Auth] Finding user with ID: ${decoded.id}`);
-                const user = await User_1.default.findById(decoded.id);
-                console.log('[MatchGateway Auth] User found:', user ? user._id : 'Not found');
-                if (!user) {
-                    console.error('[MatchGateway Auth] Error: User not found in DB.');
-                    return next(new Error('Authentication error: User not found'));
-                }
-                socket.userId = user._id.toString();
-                socket.userInfo = {
-                    id: user._id.toString(),
-                    nickname: user.nickname,
-                    gender: user.gender,
-                };
-                console.log(`[MatchGateway Auth] Auth successful for user: ${socket.userId}`);
-                next(); // Proceed to connection handler
-            }
-            catch (error) {
-                console.error('[MatchGateway Auth] General error during auth:', error.message);
-                return next(new Error('Authentication error: Server error'));
-            }
-        });
-        // --- End of Authentication logic ---
-        matchNamespace.on('connection', async (socket) => {
-            // Now userId should be set here if authentication was successful
-            console.log(`User connected to match: ${socket.userId}`);
-            // Handle cases where middleware failed but connection still established (should ideally not happen with next(error))
-            if (!socket.userId) {
-                console.error('Connection established but userId is still missing!');
-                socket.disconnect(); // Disconnect if userId is missing
+        this.namespace = io.of('/match');
+        // Redis 이벤트 구독 설정
+        this.subscribeToRedisEvents();
+        // 연결 이벤트 핸들러 등록
+        this.namespace.on('connection', this.handleConnection.bind(this));
+        logger_1.logger.info('매칭 게이트웨이 초기화 완료');
+    }
+    // 클라이언트 연결 처리
+    handleConnection(socket) {
+        logger_1.logger.info(`매칭 소켓 연결됨: ${socket.id}`);
+        // 인증 정보 확인
+        const token = socket.handshake.auth.token;
+        const userId = socket.handshake.auth.userId;
+        if (userId) {
+            // 사용자 ID와 소켓 ID 매핑
+            this.userSocketMap.set(userId, socket.id);
+            this.socketUserMap.set(socket.id, userId);
+            // 소켓에 사용자 ID 설정
+            socket.userId = userId;
+            logger_1.logger.info(`매칭 소켓 인증됨: ${socket.id}, 사용자: ${userId}`);
+            // 현재 매칭 상태 확인 및 응답
+            this.checkAndSendMatchStatus(socket, userId);
+            // 현재 크레딧 정보 전송
+            this.sendCreditInfo(socket, userId);
+            // 이벤트 핸들러 등록
+            this.registerEventHandlers(socket);
+        }
+        else {
+            logger_1.logger.warn(`인증되지 않은 매칭 소켓 연결: ${socket.id}`);
+            socket.emit('match_error', { message: '인증이 필요합니다' });
+            socket.disconnect(true);
+        }
+    }
+    // 이벤트 핸들러 등록
+    registerEventHandlers(socket) {
+        // 소켓 연결 시 사용자 ID 로그
+        console.log(`[MatchGateway] User connected: ${socket.userId}`);
+        // 이벤트 핸들러 등록
+        socket.on('start_match', () => this.handleStartMatch(socket));
+        socket.on('cancel_match', () => this.handleMatchCancel(socket));
+        socket.on('toggle_match', (data) => this.handleToggleMatch(socket, data));
+        socket.on('check_match_status', () => this.handleCheckMatchStatus(socket));
+        socket.on('disconnect', (reason) => this.handleDisconnect(socket, reason));
+    }
+    // 크레딧 정보 요청 처리
+    async handleCreditInfoRequest(socket) {
+        try {
+            const userId = this.socketUserMap.get(socket.id);
+            if (!userId) {
+                socket.emit('match_error', { message: '인증되지 않은 요청입니다' });
                 return;
             }
-            // --- Check initial match status from DB --- 
+            await this.sendCreditInfo(socket, userId);
+        }
+        catch (error) {
+            logger_1.logger.error('크레딧 정보 요청 처리 중 오류:', error);
+            socket.emit('match_error', { message: '크레딧 정보 요청 중 오류가 발생했습니다' });
+        }
+    }
+    // 사용자에게 최신 크레딧 정보 전송
+    async sendCreditInfo(socket, userId) {
+        try {
+            // 크레딧 서비스에서 사용자의 크레딧 정보 조회
+            const creditInfo = await (0, credit_service_1.getCreditByUserId)(userId);
+            if (creditInfo) {
+                socket.emit('credit_update', { credit: creditInfo.credit });
+                logger_1.logger.info(`크레딧 정보 전송: 사용자=${userId}, 크레딧=${creditInfo.credit}`);
+            }
+            else {
+                logger_1.logger.warn(`크레딧 정보 없음: 사용자=${userId}`);
+            }
+        }
+        catch (error) {
+            logger_1.logger.error(`크레딧 정보 조회 중 오류: 사용자=${userId}`, error);
+        }
+    }
+    // 매칭 요청 처리
+    async handleMatchRequest(socket, data) {
+        try {
+            const userId = this.socketUserMap.get(socket.id);
+            if (!userId) {
+                socket.emit('match_error', { message: '인증되지 않은 요청입니다' });
+                return;
+            }
+            const gender = socket.userInfo?.gender || data.gender;
+            const userInfo = data.userInfo || {};
+            // 매칭 요청 처리
+            const result = await (0, matching_service_1.processMatchRequest)(userId, gender, userInfo);
+            // 결과 응답
+            socket.emit('match_request_result', result);
+            // 크레딧이 변경되었을 수 있으므로 최신 크레딧 정보 전송
+            if (result.success) {
+                await this.sendCreditInfo(socket, userId);
+            }
+            logger_1.logger.info(`매칭 요청 결과: 사용자=${userId}, 성공=${result.success}`);
+        }
+        catch (error) {
+            logger_1.logger.error('매칭 요청 처리 중 오류:', error);
+            socket.emit('match_error', { message: '매칭 요청 중 오류가 발생했습니다' });
+        }
+    }
+    // 매칭 취소 처리
+    async handleMatchCancel(socket) {
+        try {
+            const userId = this.socketUserMap.get(socket.id);
+            if (!userId) {
+                socket.emit('match_error', { message: '인증되지 않은 요청입니다' });
+                return;
+            }
+            // 매칭 취소 처리
+            const result = await (0, matching_service_1.cancelMatchRequest)(userId);
+            // 결과 응답
+            socket.emit('match_cancel_result', result);
+            logger_1.logger.info(`매칭 취소 결과: 사용자=${userId}, 성공=${result.success}`);
+        }
+        catch (error) {
+            logger_1.logger.error('매칭 취소 처리 중 오류:', error);
+            socket.emit('match_error', { message: '매칭 취소 중 오류가 발생했습니다' });
+        }
+    }
+    // 매칭 상태 확인
+    async handleStatusCheck(socket) {
+        try {
+            const userId = this.socketUserMap.get(socket.id);
+            if (!userId) {
+                socket.emit('match_error', { message: '인증되지 않은 요청입니다' });
+                return;
+            }
+            // 사용자 정보에서 성별 가져오기
+            const gender = socket.userInfo?.gender;
+            logger_1.logger.info(`매칭 상태 확인 요청: 사용자=${userId}, 성별=${gender || 'unknown'}`);
+            // 매칭 상태 확인 및 전송
+            const status = await this.checkAndSendMatchStatus(socket, userId);
+            // 추가 정보 전송: 상태와 함께 성별 정보를 'current_match_status' 이벤트로 전달
+            socket.emit('current_match_status', {
+                isMatching: status?.isMatching || false,
+                gender: gender,
+                userId: userId
+            });
+            logger_1.logger.info(`매칭 상태 응답 전송: 사용자=${userId}, 매칭 중=${status?.isMatching || false}`);
+        }
+        catch (error) {
+            logger_1.logger.error('매칭 상태 확인 중 오류:', error);
+            socket.emit('match_error', { message: '매칭 상태 확인 중 오류가 발생했습니다' });
+        }
+    }
+    // 연결 해제 처리
+    handleDisconnect(socket, reason) {
+        const userId = this.socketUserMap.get(socket.id);
+        if (userId) {
+            // 매핑 삭제
+            this.userSocketMap.delete(userId);
+            this.socketUserMap.delete(socket.id);
+            logger_1.logger.info(`매칭 소켓 연결 해제: ${socket.id}, 사용자: ${userId}, 이유: ${reason}`);
+        }
+        else {
+            logger_1.logger.info(`매칭 소켓 연결 해제: ${socket.id}, 이유: ${reason}`);
+        }
+    }
+    // 매칭 상태 확인 및 전송
+    async checkAndSendMatchStatus(socket, userId) {
+        try {
+            const status = await (0, matching_service_1.getMatchStatus)(userId);
+            // 기존 'match_status', 새로운 'match_status' 이벤트 전송
+            socket.emit('match_status', status);
+            return status;
+        }
+        catch (error) {
+            logger_1.logger.error(`매칭 상태 확인 중 오류: 사용자=${userId}`, error);
+            socket.emit('match_error', { message: '매칭 상태 확인 중 오류가 발생했습니다' });
+            return null;
+        }
+    }
+    // Redis 이벤트 구독 설정
+    subscribeToRedisEvents() {
+        // 매칭 성공 이벤트 구독
+        (0, redis_service_1.subscribeToChannel)(redis_service_1.CHANNELS.MATCH_SUCCESSFUL, (message) => {
             try {
-                const user = await User_1.default.findById(socket.userId);
-                if (user && user.isWaitingForMatch) {
-                    console.log(`[MatchGateway Connection] User ${socket.userId} was already waiting. Restoring state.`);
-                    this.matchingUsers.set(socket.userId, socket); // Add to in-memory map
-                    socket.emit('current_match_status', { isMatching: true }); // Notify frontend
-                }
-                else {
-                    // Ensure DB state is false if not waiting (consistency check)
-                    if (user && !user.isWaitingForMatch && this.matchingUsers.has(socket.userId)) {
-                        console.warn(`[MatchGateway Connection] User ${socket.userId} is not waiting in DB but was in memory map. Removing from map.`);
-                        this.matchingUsers.delete(socket.userId);
-                    }
-                    // Optionally notify frontend that they are not matching
-                    // socket.emit('current_match_status', { isMatching: false }); 
-                }
+                const data = JSON.parse(message);
+                const { maleId, femaleId, roomId, timestamp } = data;
+                // 각 사용자에게 매칭 성공 알림
+                this.notifyUser(maleId, 'match_success', {
+                    roomId,
+                    partnerId: femaleId,
+                    timestamp
+                });
+                this.notifyUser(femaleId, 'match_success', {
+                    roomId,
+                    partnerId: maleId,
+                    timestamp
+                });
+                // 남성 사용자에게 크레딧 정보 업데이트 전송 (매칭으로 인한 크레딧 차감)
+                this.updateUserCreditInfo(maleId);
+                logger_1.logger.info(`매칭 성공 알림 전송: 방=${roomId}, 남성=${maleId}, 여성=${femaleId}`);
             }
             catch (error) {
-                console.error(`[MatchGateway Connection] Error checking initial status for ${socket.userId}:`, error);
-                // Handle error appropriately
+                logger_1.logger.error('매칭 성공 이벤트 처리 중 오류:', error);
             }
-            // --- End Check initial match status --- 
-            // --- Start Match Event Listener ---
-            socket.on('start_match', async () => {
-                await this.handleStartMatch(socket);
-            });
-            // --- End Start Match Event Listener ---
-            // Change listener from 'stop_match' to 'cancel_match'
-            socket.on('cancel_match', async () => {
-                await this.handleCancelMatch(socket);
-            });
-            // 매칭 상태 확인 이벤트 (Keep as is or remove if not used by frontend)
-            socket.on('check-match-status', async () => {
-                await this.handleCheckMatchStatus(socket);
-            });
-            // 연결 해제 이벤트
-            socket.on('disconnect', () => {
-                console.log(`User disconnected from match: ${socket.userId}`);
-                // Only remove from the in-memory map, DB state persists
-                if (socket.userId) {
-                    this.matchingUsers.delete(socket.userId);
-                    console.log(`[MatchGateway Disconnect] Removed user ${socket.userId} from in-memory map only.`);
-                }
-            });
         });
-        // 주기적인 매칭 처리 (10초마다)
-        setInterval(() => {
-            this.processMatching();
-        }, 10000);
+        // 매칭 취소 이벤트 구독
+        (0, redis_service_1.subscribeToChannel)(redis_service_1.CHANNELS.MATCH_CANCELLED, (message) => {
+            try {
+                const data = JSON.parse(message);
+                const { userId, timestamp } = data;
+                // 사용자에게 매칭 취소 알림
+                this.notifyUser(userId, 'match_cancelled', {
+                    timestamp
+                });
+                logger_1.logger.info(`매칭 취소 알림 전송: 사용자=${userId}`);
+            }
+            catch (error) {
+                logger_1.logger.error('매칭 취소 이벤트 처리 중 오류:', error);
+            }
+        });
+        // 매칭 요청 이벤트 구독 (필요하면 구현)
+        (0, redis_service_1.subscribeToChannel)(redis_service_1.CHANNELS.MATCH_REQUESTED, (message) => {
+            try {
+                const data = JSON.parse(message);
+                const { userId, gender, timestamp } = data;
+                logger_1.logger.info(`매칭 요청 이벤트 수신: 사용자=${userId}, 성별=${gender}`);
+                // 필요한 추가 처리 구현
+            }
+            catch (error) {
+                logger_1.logger.error('매칭 요청 이벤트 처리 중 오류:', error);
+            }
+        });
     }
-    // --- Start Match Handler ---
+    // 특정 사용자에게 알림 전송
+    notifyUser(userId, event, data) {
+        const socketId = this.userSocketMap.get(userId);
+        if (socketId) {
+            this.namespace.to(socketId).emit(event, data);
+            return true;
+        }
+        logger_1.logger.warn(`사용자에게 알림 실패: ${userId}, 이벤트=${event}, 연결된 소켓 없음`);
+        return false;
+    }
+    // start_match 이벤트 처리 함수 추가
     async handleStartMatch(socket) {
         try {
-            if (!socket.userId)
+            const userId = socket.userId || this.socketUserMap.get(socket.id);
+            if (!userId) {
+                console.log('[MatchGateway] Unauthorized match request');
+                socket.emit('match_error', { message: '인증되지 않은 사용자입니다' });
                 return;
-            const userId = socket.userId;
-            console.log(`[handleStartMatch] Received start_match from user ${userId}`);
-            // 이미 매칭 대기 중인지 확인
-            const existingQueue = await MatchQueue_1.default.findOne({
-                userId: userId,
-                isWaiting: true
-            });
-            if (existingQueue) {
-                console.log(`[handleStartMatch] User ${userId} is already in the matching queue.`);
-                return socket.emit('match_error', { message: '이미 매칭 대기 중입니다.' });
             }
             // 사용자 정보 조회
             const user = await User_1.default.findById(userId);
             if (!user) {
-                console.log(`[handleStartMatch] User ${userId} not found.`);
-                return socket.emit('match_error', { message: '사용자 정보를 찾을 수 없습니다.' });
-            }
-            const userGender = user.gender;
-            if (!userGender) {
-                console.log(`[handleStartMatch] User ${userId} has no gender specified.`);
-                return socket.emit('match_error', { message: '성별 정보가 없어 매칭할 수 없습니다.' });
-            }
-            console.log(`[handleStartMatch] Proceeding with match request for user ${userId}`);
-            // 매칭 대기열에 등록
-            console.log(`[handleStartMatch] Adding user ${userId} to DB match queue.`);
-            const matchQueue = new MatchQueue_1.default({
-                userId: userId,
-                gender: userGender,
-                isWaiting: true
-            });
-            await matchQueue.save();
-            // User 모델의 isWaitingForMatch 필드도 업데이트
-            console.log(`[handleStartMatch] Updating User.isWaitingForMatch to true for user ${userId}`);
-            await User_1.default.findByIdAndUpdate(userId, { isWaitingForMatch: true });
-            // 매칭 대기 중인 사용자 목록에 추가 (In-memory map for faster access if needed)
-            this.matchingUsers.set(userId, socket);
-            console.log(`[handleStartMatch] User ${userId} added to the in-memory matching users map.`);
-            // 즉시 매칭 시도 (Keep existing logic)
-            console.log(`[handleStartMatch] Attempting immediate match for user ${userId}.`);
-            this.tryMatchForUser(userId, userGender);
-            console.log(`[handleStartMatch] Request processed successfully for user ${userId}.`);
-        }
-        catch (error) {
-            console.error('[handleStartMatch] Error:', error);
-            socket.emit('match_error', { message: '매칭 시작 중 오류가 발생했습니다.' });
-        }
-    }
-    // --- End Start Match Handler ---
-    // 매칭 요청 처리 (Rename or remove this if replaced by handleStartMatch)
-    /*
-    private async handleMatchRequest(socket: UserSocket) {
-       // ... original handleMatchRequest code ...
-    }
-    */
-    // 매칭 취소 처리 (handleCancelMatch remains mostly the same)
-    async handleCancelMatch(socket) {
-        try {
-            if (!socket.userId)
-                return; // No user ID, nothing to cancel
-            const userId = socket.userId;
-            console.log(`[handleCancelMatch] Attempting to cancel match for user: ${userId}`);
-            // 대기 중인 매칭 요청 확인
-            const queueEntry = await MatchQueue_1.default.findOne({
-                userId: userId,
-                isWaiting: true
-            });
-            // If not waiting in DB queue, nothing to cancel there
-            if (!queueEntry) {
-                console.log(`[handleCancelMatch] User ${userId} not found waiting in DB queue.`);
-                // Also remove from the in-memory map just in case
-                if (this.matchingUsers.has(userId)) {
-                    this.matchingUsers.delete(userId);
-                    console.log(`[handleCancelMatch] Removed user ${userId} from in-memory matching users map.`);
-                }
-                // Emit cancelled event even if not found, as the goal is achieved (not waiting)
-                socket.emit('match_cancelled');
+                console.log(`[MatchGateway] User not found: ${userId}`);
+                socket.emit('match_error', { message: '사용자 정보를 찾을 수 없습니다' });
                 return;
             }
-            // 매칭 대기 상태 변경 (DB)
-            queueEntry.isWaiting = false;
-            await queueEntry.save();
-            console.log(`[handleCancelMatch] Updated DB queue entry for user ${userId} to not waiting.`);
-            // User 모델의 isWaitingForMatch 필드도 false로 업데이트
-            console.log(`[handleCancelMatch] Updating User.isWaitingForMatch to false for user ${userId}`);
-            await User_1.default.findByIdAndUpdate(userId, { isWaitingForMatch: false });
-            // 매칭 대기 중인 사용자 목록에서 제거 (In-memory map)
-            if (this.matchingUsers.has(userId)) {
-                this.matchingUsers.delete(userId);
-                console.log(`[handleCancelMatch] Removed user ${userId} from in-memory map.`);
+            console.log(`[MatchGateway] Processing match request for user: ${userId}, gender: ${user.gender}`);
+            // 기본값으로 성별 설정 (없을 경우)
+            const gender = user.gender || User_1.Gender.MALE;
+            // 매칭 요청 처리
+            const result = await (0, matching_service_1.processMatchRequest)(userId, gender, { socketId: socket.id });
+            if (result.success) {
+                if (result.status === 'waiting') {
+                    // 매칭 대기열에 추가됨
+                    console.log(`[MatchGateway] User added to match queue: ${userId}`);
+                    socket.emit('match_waiting', { message: result.message });
+                }
+                else {
+                    // 즉시 매칭됨
+                    console.log(`[MatchGateway] Match success: ${userId} with partner ${result.partnerId}, roomId: ${result.roomId}`);
+                    socket.emit('match_success', {
+                        roomId: result.roomId,
+                        partner: result.partner,
+                        creditUsed: gender === User_1.Gender.MALE ? 10 : 0
+                    });
+                }
             }
             else {
-                console.warn(`[handleCancelMatch] User ${userId} was in DB queue but not in in-memory map.`);
+                // 오류 전송
+                console.log(`[MatchGateway] Match error for user ${userId}: ${result.message}`);
+                socket.emit('match_error', { message: result.message });
             }
-            // Emit success event to the client
-            socket.emit('match_cancelled');
-            console.log(`[handleCancelMatch] Emitted 'match_cancelled' to user ${userId}`);
         }
         catch (error) {
-            console.error('[handleCancelMatch] Error:', error);
-            // Emit error event to the client
-            socket.emit('cancel_error', { message: error.message || '매칭 취소 중 오류가 발생했습니다.' });
+            console.error('[MatchGateway] Error in handleStartMatch:', error);
+            socket.emit('match_error', { message: '매칭 처리 중 오류가 발생했습니다' });
         }
     }
-    // 매칭 상태 확인 처리
+    // 토글 스위치 이벤트 처리 함수 추가
+    async handleToggleMatch(socket, data) {
+        try {
+            const userId = this.socketUserMap.get(socket.id);
+            if (!userId) {
+                socket.emit('match_error', { message: '인증되지 않은 요청입니다' });
+                return;
+            }
+            logger_1.logger.info(`토글 스위치 상태 변경: 사용자=${userId}, 활성화=${data.isEnabled}`);
+            // 현재 실제 매칭 상태 확인 (토글 전)
+            const currentStatus = await (0, matching_service_1.getMatchStatus)(userId);
+            const isCurrentlyMatching = currentStatus?.isWaiting || false;
+            // 요청된 상태와 현재 상태가 같으면 중복 요청으로 간주
+            if (data.isEnabled === isCurrentlyMatching) {
+                logger_1.logger.info(`토글 요청 무시: 사용자=${userId}, 현재 상태와 동일(${data.isEnabled})`);
+                socket.emit('toggle_match_result', {
+                    success: true,
+                    isMatching: isCurrentlyMatching,
+                    message: isCurrentlyMatching ? '이미 매칭 중입니다' : '이미 매칭이 취소되었습니다'
+                });
+                // 현재 상태 재전송 (클라이언트 상태 동기화)
+                socket.emit('current_match_status', {
+                    isMatching: isCurrentlyMatching,
+                    userId: userId,
+                    gender: socket.userInfo?.gender
+                });
+                return;
+            }
+            if (data.isEnabled) {
+                // 데이터베이스에서 사용자 정보 조회
+                const user = await User_1.default.findById(userId);
+                if (!user) {
+                    socket.emit('match_error', { message: '사용자 정보를 찾을 수 없습니다' });
+                    return;
+                }
+                const gender = user.gender;
+                if (!gender) {
+                    socket.emit('match_error', { message: '성별 정보가 없어 매칭할 수 없습니다' });
+                    return;
+                }
+                // 크레딧 확인 (성별 관계없이 모두 확인)
+                if (user.credit < 10) {
+                    logger_1.logger.warn(`토글 매칭 거부: 사용자=${userId}, 크레딧 부족`);
+                    socket.emit('toggle_match_result', {
+                        success: false,
+                        isMatching: false,
+                        message: '크레딧이 부족합니다'
+                    });
+                    return;
+                }
+                logger_1.logger.info(`토글 매칭 요청: 사용자=${userId}, 실제 성별=${gender}`);
+                const userInfo = { socketId: socket.id }; // 소켓 ID 포함
+                // 매칭 요청 처리
+                const result = await (0, matching_service_1.processMatchRequest)(userId, gender, userInfo);
+                if (result.success) {
+                    socket.emit('toggle_match_result', {
+                        success: true,
+                        isMatching: true,
+                        message: '매칭이 시작되었습니다'
+                    });
+                    logger_1.logger.info(`토글 매칭 시작 성공: 사용자=${userId}`);
+                    // 매칭 대기자 목록 관리는 여기서 하지 않고
+                    // processMatchRequest 함수 내에서 처리하도록 함
+                }
+                else {
+                    socket.emit('toggle_match_result', {
+                        success: false,
+                        isMatching: false,
+                        message: result.message || '매칭 시작에 실패했습니다'
+                    });
+                    logger_1.logger.warn(`토글 매칭 시작 실패: 사용자=${userId}, 이유=${result.message}`);
+                }
+            }
+            else {
+                // 스위치가 꺼지면 매칭 취소 처리
+                const result = await (0, matching_service_1.cancelMatchRequest)(userId);
+                if (result.success) {
+                    socket.emit('toggle_match_result', {
+                        success: true,
+                        isMatching: false,
+                        message: '매칭이 취소되었습니다'
+                    });
+                    logger_1.logger.info(`토글 매칭 취소 성공: 사용자=${userId}`);
+                    // 매칭 대기자 목록 관리는 여기서 하지 않고
+                    // cancelMatchRequest 함수 내에서 처리하도록 함
+                }
+                else {
+                    socket.emit('toggle_match_result', {
+                        success: false,
+                        isMatching: false,
+                        message: result.message || '매칭 취소에 실패했습니다'
+                    });
+                    logger_1.logger.warn(`토글 매칭 취소 실패: 사용자=${userId}, 이유=${result.message}`);
+                }
+            }
+            // 약간의 지연 후 최종 상태 조회하여 전송 (DB 작업 완료 후)
+            setTimeout(async () => {
+                try {
+                    const finalStatus = await (0, matching_service_1.getMatchStatus)(userId);
+                    socket.emit('current_match_status', {
+                        isMatching: finalStatus?.isWaiting || false,
+                        userId: userId,
+                        gender: socket.userInfo?.gender
+                    });
+                    logger_1.logger.info(`토글 후 최종 상태 전송: 사용자=${userId}, 매칭=${finalStatus?.isWaiting || false}`);
+                }
+                catch (error) {
+                    logger_1.logger.error(`토글 후 상태 조회 오류: 사용자=${userId}`, error);
+                }
+            }, 300);
+        }
+        catch (error) {
+            logger_1.logger.error('토글 스위치 처리 중 오류:', error);
+            socket.emit('match_error', { message: '토글 스위치 처리 중 오류가 발생했습니다' });
+            // 오류 발생 시에도 현재 상태 조회하여 전송 (UI 동기화)
+            try {
+                const currentUserId = this.socketUserMap.get(socket.id);
+                if (currentUserId) {
+                    const errorStatus = await (0, matching_service_1.getMatchStatus)(currentUserId);
+                    socket.emit('current_match_status', {
+                        isMatching: errorStatus?.isWaiting || false,
+                        userId: currentUserId,
+                        gender: socket.userInfo?.gender
+                    });
+                }
+            }
+            catch (secondError) {
+                logger_1.logger.error('오류 후 상태 조회 실패:', secondError);
+            }
+        }
+    }
+    // 사용자의 크레딧 정보 업데이트
+    async updateUserCreditInfo(userId) {
+        try {
+            const socketId = this.userSocketMap.get(userId);
+            if (!socketId)
+                return false;
+            const socket = this.namespace.sockets.get(socketId);
+            if (!socket)
+                return false;
+            await this.sendCreditInfo(socket, userId);
+            return true;
+        }
+        catch (error) {
+            logger_1.logger.error(`사용자 크레딧 정보 업데이트 중 오류: 사용자=${userId}`, error);
+            return false;
+        }
+    }
     async handleCheckMatchStatus(socket) {
         try {
-            if (!socket.userId)
+            const userId = socket.userId || this.socketUserMap.get(socket.id);
+            if (!userId) {
+                console.log('[MatchGateway] Unauthorized match status check');
+                socket.emit('match_error', { message: '인증되지 않은 사용자입니다' });
                 return;
-            // 현재 대기 중인 매칭 요청 확인
-            const queueEntry = await MatchQueue_1.default.findOne({
-                userId: socket.userId,
-                isWaiting: true
+            }
+            // 사용자 정보 조회
+            const user = await User_1.default.findById(userId);
+            if (!user) {
+                console.log(`[MatchGateway] User not found in status check: ${userId}`);
+                socket.emit('match_error', { message: '사용자 정보를 찾을 수 없습니다' });
+                return;
+            }
+            console.log(`[MatchGateway] Checking match status for user: ${userId}, gender: ${user.gender}`);
+            // 상태 정보 확인 (Redis와 DB 상태 일관성 확인)
+            const status = await (0, matching_service_1.getMatchStatus)(userId);
+            const isWaiting = status?.isWaiting || false;
+            // 매칭된 채팅방 정보 포함
+            const matchedRoomId = status?.matchedRoomId || null;
+            // 보다 자세한 상태 정보 전송
+            socket.emit('current_match_status', {
+                isMatching: isWaiting,
+                userId: userId,
+                gender: user.gender,
+                matchedRoomId: matchedRoomId,
+                credit: user.credit, // 현재 크레딧 정보도 함께 전송
+                timestamp: Date.now() // 클라이언트가 응답 시간을 알 수 있도록
             });
-            // 대기 중인 매칭이 있는 경우
-            if (queueEntry) {
-                return socket.emit('match-status', {
-                    isWaiting: true,
-                    matchedUser: null,
-                    queuedAt: queueEntry.createdAt
-                });
+            // 소켓 연결 상태 유지 (필요하다면 matchingUsers 대신 다른 방법으로 구현)
+            if (isWaiting) {
+                // 유저가 매칭 중이면 현재 소켓 정보 캐싱 (간접적으로 메모리 상태 유지)
+                this.userSocketMap.set(userId, socket.id);
+                console.log(`[MatchGateway] Socket mapping updated for waiting user ${userId}`);
             }
-            // 최근 매칭된 결과 확인 (최근 1시간 이내)
-            const oneHourAgo = new Date();
-            oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-            // 타입 단언을 사용하여 업데이트 시간 속성에 접근합니다
-            const recentMatch = await MatchQueue_1.default.findOne({
-                userId: socket.userId,
-                isWaiting: false,
-                updatedAt: { $gte: oneHourAgo }
-            }).sort({ updatedAt: -1 });
-            if (!recentMatch) {
-                return socket.emit('match-status', {
-                    isWaiting: false,
-                    matchedUser: null
-                });
-            }
-            // 최근 생성된 채팅방 찾기
-            const recentChatRoom = await ChatRoom_1.default.findOne({
-                $or: [
-                    { user1Id: socket.userId },
-                    { user2Id: socket.userId }
-                ],
-                createdAt: { $gte: recentMatch.updatedAt }
-            }).sort({ createdAt: -1 });
-            if (!recentChatRoom) {
-                return socket.emit('match-status', {
-                    isWaiting: false,
-                    matchedUser: null
-                });
-            }
-            // 매칭된 상대방 ID 찾기
-            const matchedUserId = recentChatRoom.user1Id === socket.userId
-                ? recentChatRoom.user2Id
-                : recentChatRoom.user1Id;
-            // 매칭된 상대방 정보
-            const matchedUser = await User_1.default.findById(matchedUserId).select('_id nickname birthYear height city profileImages gender');
-            if (!matchedUser) {
-                return socket.emit('match-status', {
-                    isWaiting: false,
-                    matchedUser: null
-                });
-            }
-            // 상대방 정보 반환 (프로필 이미지는 블러 처리)
-            const blurredProfileImages = matchedUser.profileImages.map((img) => `blurred-${img}`);
-            socket.emit('match-status', {
-                isWaiting: false,
-                matchedUser: {
-                    id: matchedUser._id,
-                    nickname: matchedUser.nickname,
-                    birthYear: matchedUser.birthYear,
-                    height: matchedUser.height,
-                    city: matchedUser.city,
-                    gender: matchedUser.gender,
-                    profileImages: blurredProfileImages,
-                    chatRoomId: recentChatRoom._id
-                }
-            });
+            console.log(`[MatchGateway] Sent match status to user ${userId}: isMatching=${isWaiting}, matchedRoom=${matchedRoomId || 'none'}`);
         }
         catch (error) {
-            console.error('Check match status error:', error);
-            socket.emit('match_error', { message: '매칭 상태 확인 중 오류가 발생했습니다.' });
-        }
-    }
-    // 매칭 처리 루프
-    async processMatching() {
-        // 대기열에 있는 모든 사용자 조회
-        const waitingUsers = await MatchQueue_1.default.find({ isWaiting: true })
-            .sort({ createdAt: 1 }); // 오래 기다린 사용자 우선
-        // 성별별 대기 목록
-        const maleWaiting = waitingUsers.filter((user) => user.gender === 'male');
-        const femaleWaiting = waitingUsers.filter((user) => user.gender === 'female');
-        // 매칭 가능한 쌍만큼 반복
-        const pairsToMatch = Math.min(maleWaiting.length, femaleWaiting.length);
-        for (let i = 0; i < pairsToMatch; i++) {
-            const maleUser = maleWaiting[i];
-            const femaleUser = femaleWaiting[i];
-            // 두 사용자 매칭
-            await this.matchUsers(maleUser.userId, femaleUser.userId);
-        }
-    }
-    // 특정 사용자의 성별에 맞는 매칭 찾기
-    async tryMatchForUser(userId, gender) {
-        console.log(`[tryMatchForUser] Checking matches for user: ${userId} (${gender})`);
-        const targetGender = gender === 'male' ? 'female' : 'male';
-        // Find a user in the in-memory map of the opposite gender who is ALSO waiting in DB
-        let matchedUserId = null;
-        for (const [otherUserId, otherSocket] of this.matchingUsers.entries()) {
-            if (otherUserId !== userId && otherSocket.userInfo?.gender === targetGender) {
-                // Verify the potential match is also waiting in the DB
-                const potentialMatchUser = await User_1.default.findById(otherUserId);
-                if (potentialMatchUser && potentialMatchUser.isWaitingForMatch) {
-                    matchedUserId = otherUserId;
-                    break; // Found a valid match
-                }
-            }
-        }
-        if (matchedUserId) {
-            console.log(`[tryMatchForUser] Found potential match: ${userId} and ${matchedUserId}`);
-            // Ensure the current user is also still waiting in DB before proceeding
-            const currentUser = await User_1.default.findById(userId);
-            if (currentUser && currentUser.isWaitingForMatch) {
-                await this.matchUsers(userId, matchedUserId);
-            }
-            else {
-                console.log(`[tryMatchForUser] Current user ${userId} is no longer waiting in DB. Aborting match.`);
-            }
-        }
-        else {
-            console.log(`[tryMatchForUser] No suitable match found immediately for ${userId}`);
-        }
-    }
-    // 두 사용자 매칭 처리
-    async matchUsers(maleUserId, femaleUserId) {
-        try {
-            // 두 사용자의 대기 상태 변경
-            await MatchQueue_1.default.updateMany({ userId: { $in: [maleUserId, femaleUserId] }, isWaiting: true }, { isWaiting: false });
-            // User 모델의 isWaitingForMatch 필드도 false로 업데이트
-            await User_1.default.updateMany({ _id: { $in: [maleUserId, femaleUserId] } }, { isWaitingForMatch: false });
-            // 채팅방 생성
-            const chatRoom = new ChatRoom_1.default({
-                user1Id: maleUserId,
-                user2Id: femaleUserId,
-                isActive: true
-            });
-            await chatRoom.save();
-            // 매칭 성사 시 양쪽 사용자의 크레딧 차감 (각 10 크레딧)
-            try {
-                // 남성 사용자 크레딧 차감
-                await this.creditService.useCredit(maleUserId, this.MATCHING_CREDIT_COST, 'match', '매칭 성사');
-                // 여성 사용자 크레딧 차감
-                await this.creditService.useCredit(femaleUserId, this.MATCHING_CREDIT_COST, 'match', '매칭 성사');
-                console.log(`[matchUsers] Credits deducted from users: ${maleUserId} and ${femaleUserId}`);
-            }
-            catch (creditError) {
-                console.error('[matchUsers] Error deducting credits:', creditError);
-                // 크레딧 차감 실패 시에도 매칭은 진행 (중요! 사용자 경험 고려)
-                // 실제 환경에서는 롤백 또는 다른 대응책이 필요할 수 있음
-            }
-            // 두 사용자에게 매칭 알림
-            const maleSocket = this.matchingUsers.get(maleUserId);
-            const femaleSocket = this.matchingUsers.get(femaleUserId);
-            // 매칭 대기자 목록에서 제거
-            this.matchingUsers.delete(maleUserId);
-            this.matchingUsers.delete(femaleUserId);
-            // 남성 사용자 정보
-            const maleUser = await User_1.default.findById(maleUserId)
-                .select('_id nickname birthYear height city profileImages');
-            // 여성 사용자 정보
-            const femaleUser = await User_1.default.findById(femaleUserId)
-                .select('_id nickname birthYear height city profileImages');
-            if (maleUser && femaleUser) {
-                // 남성 사용자에게 알림
-                if (maleSocket) {
-                    const blurredFemaleImages = femaleUser.profileImages.map((img) => `blurred-${img}`);
-                    maleSocket.emit('match_success', {
-                        roomId: chatRoom._id.toString(),
-                        partner: {
-                            id: femaleUser._id,
-                            nickname: femaleUser.nickname,
-                            age: new Date().getFullYear() - (femaleUser.birthYear || 0),
-                            height: femaleUser.height,
-                            city: femaleUser.city,
-                            profilePictures: blurredFemaleImages
-                        },
-                        creditUsed: this.MATCHING_CREDIT_COST // 매칭에 사용된 크레딧
-                    });
-                }
-                // 여성 사용자에게 알림
-                if (femaleSocket) {
-                    const blurredMaleImages = maleUser.profileImages.map((img) => `blurred-${img}`);
-                    femaleSocket.emit('match_success', {
-                        roomId: chatRoom._id.toString(),
-                        partner: {
-                            id: maleUser._id,
-                            nickname: maleUser.nickname,
-                            age: new Date().getFullYear() - (maleUser.birthYear || 0),
-                            height: maleUser.height,
-                            city: maleUser.city,
-                            profilePictures: blurredMaleImages
-                        },
-                        creditUsed: this.MATCHING_CREDIT_COST // 매칭에 사용된 크레딧
-                    });
-                }
-            }
-            console.log(`Matched users: ${maleUserId} and ${femaleUserId}, created chat room: ${chatRoom._id}`);
-        }
-        catch (error) {
-            console.error('Match users error:', error);
-            // Notify users about the error?
-            const maleSocket = this.matchingUsers.get(maleUserId);
-            const femaleSocket = this.matchingUsers.get(femaleUserId);
-            if (maleSocket)
-                maleSocket.emit('match_error', { message: '매칭 처리 중 오류 발생' });
-            if (femaleSocket)
-                femaleSocket.emit('match_error', { message: '매칭 처리 중 오류 발생' });
-            // Clean up? Remove users from matchingUsers map?
-            this.matchingUsers.delete(maleUserId);
-            this.matchingUsers.delete(femaleUserId);
+            console.error('[MatchGateway] Error in handleCheckMatchStatus:', error);
+            socket.emit('match_error', { message: '상태 확인 중 오류가 발생했습니다' });
         }
     }
 }

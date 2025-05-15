@@ -44,7 +44,7 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isLoggedIn } = useAuth();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -53,14 +53,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   // 인증 상태가 변경되면 채팅방 목록 불러오기
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isLoggedIn) {
       fetchRooms();
     } else {
       setRooms([]);
       setCurrentRoomId(null);
       setMessages([]);
     }
-  }, [isAuthenticated]);
+  }, [isLoggedIn]);
 
   // 현재 채팅방이 변경되면 메시지 불러오기
   useEffect(() => {

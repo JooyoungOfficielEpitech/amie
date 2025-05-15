@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useSocket } from './SocketContext';
 import { useAuth } from './AuthContext';
 import { useCredit } from './CreditContext';
+import { userApi } from '../api';
 
 interface MatchContextType {
   isAutoMatchEnabled: boolean;
@@ -22,14 +23,33 @@ export const useMatch = () => useContext(MatchContext);
 export const MatchProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAutoMatchEnabled, setIsAutoMatchEnabled] = useState<boolean>(false);
   const [isToggling, setIsToggling] = useState<boolean>(false); // 토글 처리 중 상태
-  const { matchSocket, isConnected } = useSocket();
-  const { user } = useAuth(); // 사용자 정보 가져오기
+  const [userGender, setUserGender] = useState<string | null>(null);
+  const { matchSocket } = useSocket();
+  const { userId } = useAuth(); // userId 정보 가져오기
   const { credit } = useCredit(); // 크레딧 정보 가져오기
   const lastToggleTime = useRef<number>(0); // 마지막 토글 시간
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null); // 디바운스 타임아웃
   
+  // 사용자 프로필 정보 가져오기
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (userId) {
+        try {
+          const profileResponse = await userApi.getProfile();
+          if (profileResponse.success && profileResponse.user) {
+            setUserGender(profileResponse.user.gender);
+          }
+        } catch (error) {
+          console.error('[MatchContext] Error fetching user profile:', error);
+        }
+      }
+    };
+    
+    fetchUserProfile();
+  }, [userId]);
+  
   // 사용자 성별 확인 (남성인 경우에만 자동 매칭 기능 활성화)
-  const isMaleUser = user?.gender === 'male';
+  const isMaleUser = userGender === 'male';
   
   // 크레딧 충분한지 확인 (10 이상 있는지)
   const hasSufficientCredit = credit !== null && credit >= 10;
@@ -125,7 +145,7 @@ export const MatchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsAutoMatchEnabled(false);
       localStorage.setItem('isAutoMatchEnabled', 'false');
     }
-  }, [isMaleUser, user, hasSufficientCredit, matchSocket]);
+  }, [isMaleUser, userId, hasSufficientCredit, matchSocket]);
 
   // 크레딧 변경 시 자동 매칭 상태 업데이트
   useEffect(() => {
