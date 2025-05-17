@@ -21,7 +21,7 @@ services:
   # MongoDB 서비스
   mongodb:
     image: mongo:latest
-    platform: linux/arm64
+    platform: linux/amd64
     container_name: amie-mongodb-prod
     restart: always
     volumes:
