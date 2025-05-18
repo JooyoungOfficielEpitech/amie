@@ -2,6 +2,19 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import io from "socket.io-client";
 import { useAuth } from './AuthContext';
 
+// 환경에 맞는 소켓 베이스 URL을 반환하는 함수
+const getSocketBaseUrl = () => {
+  // 프로덕션 환경에서는 현재 호스트 기반으로 WebSocket URL 생성
+  if (import.meta.env.PROD) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;  // host는 도메인과 포트를 포함합니다
+    return `${protocol}//${host}`;
+  }
+  
+  // 개발 환경에서는 환경 변수 또는 기본값 사용
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+};
+
 interface SocketContextType {
   matchSocket: any | null;
   isConnected: boolean;
@@ -35,10 +48,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       socketRef.current.disconnect();
     }
 
-    console.log('소켓 연결 초기화 중...');
+    // 소켓 기본 URL 결정
+    const baseUrl = getSocketBaseUrl();
+    console.log('소켓 연결 초기화 중...', baseUrl);
     
     // 소켓 연결 설정
-    const socket = io(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/match`, {
+    const socket = io(`${baseUrl}/match`, {
       auth: { token },
       transports: ['websocket'],
       reconnectionAttempts: Infinity,
