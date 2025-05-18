@@ -51,6 +51,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // 소켓 기본 URL 결정
     const baseUrl = getSocketBaseUrl();
     console.log('소켓 연결 초기화 중...', baseUrl);
+    console.log('토큰 존재 여부:', token ? '있음' : '없음');
+    console.log('userId 존재 여부:', userId ? '있음' : '없음');
     
     // 소켓 연결 설정
     const socket = io(`${baseUrl}/match`, {
@@ -69,6 +71,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     socket.on('connect', () => {
       console.log('소켓 연결 성공:', socket.id);
       setIsConnected(true);
+      
+      // 수동 인증 이벤트 호출
+      console.log('인증 이벤트 호출...');
+      socket.emit('authenticate', { token, userId });
+    });
+
+    // 인증 성공/실패 처리
+    socket.on('authenticated', (data: { success: boolean }) => {
+      console.log('인증 성공:', data);
+    });
+    
+    socket.on('error', (error: { message: string }) => {
+      console.error('소켓 오류:', error);
     });
 
     socket.on('disconnect', (reason: string) => {
@@ -111,6 +126,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socketRef.current.off('connect');
         socketRef.current.off('disconnect');
         socketRef.current.off('connect_error');
+        socketRef.current.off('authenticated');
+        socketRef.current.off('error');
         socketRef.current.disconnect();
       }
     };
