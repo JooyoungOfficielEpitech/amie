@@ -40,17 +40,17 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { explorer: true })
 app.use('/swagger', express.static(path.join(__dirname, '../swagger')));
 
 // 라우트
-app.use('/api/auth', authRoutes);
-app.use('/api/user', userProfileRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/match', matchRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/queue', matchQueueRoutes);
-app.use('/api/chat-rooms', chatRoomRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/credits', creditLogRoutes);
-app.use('/api/credit', creditRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/auth', authRoutes);
+app.use('/user', userProfileRoutes);
+app.use('/users', userRoutes);
+app.use('/match', matchRoutes);
+app.use('/chat', chatRoutes);
+app.use('/queue', matchQueueRoutes);
+app.use('/chat-rooms', chatRoomRoutes);
+app.use('/messages', messageRoutes);
+app.use('/credits', creditLogRoutes);
+app.use('/credit', creditRoutes);
+app.use('/admin', adminRoutes);
 
 // 기본 라우트
 app.get('/', (req, res) => {
