@@ -4,7 +4,6 @@ import Sidebar from './Sidebar';
 import { userApi, UserProfile, chatApi } from '../../api';
 import amieLogo from '../../assets/amie_logo.png';
 import * as AppStrings from '../../constants/strings';
-import io from "socket.io-client";
 import { usePayment } from '../../contexts/PaymentContext';
 import { useCredit } from '../../contexts/CreditContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
@@ -42,7 +41,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [matchError, setMatchError] = useState<string | null>(null);
-    const [matchSocket, setMatchSocket] = useState<any>(null);
+    const [matchSocket] = useState<any>(null);
     const [isMatching, setIsMatching] = useState<boolean>(false);
     const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null);
     const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false);
