@@ -6,6 +6,7 @@ import amieLogo from '../../assets/amie_logo.png';
 import * as AppStrings from '../../constants/strings';
 import { usePayment } from '../../contexts/PaymentContext';
 import { useCredit } from '../../contexts/CreditContext';
+import { useSocket } from '../../contexts/SocketContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
 import ProfileSlideshow from './ProfileSlideshow';
@@ -41,12 +42,11 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [matchError, setMatchError] = useState<string | null>(null);
-    const [matchSocket] = useState<any>(null);
+    const { matchSocket, isConnected: isSocketConnected } = useSocket();
     const [isMatching, setIsMatching] = useState<boolean>(false);
     const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null);
     const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false);
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
-    const [isSocketConnectedState, setIsSocketConnectedState] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
     
     // 불필요한 API 호출 방지용 레퍼런스
@@ -84,7 +84,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         const handleConnect = () => {
             console.log('Connected to /match namespace');
             setError(null);
-            setIsSocketConnectedState(true);
             
             // 프로필에서 이미 매칭 중인지 확인
             if (profile.isWaitingForMatch) {
@@ -100,14 +99,15 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
 
         const handleDisconnect = (reason: any) => {
             console.log('Disconnected from /match namespace:', reason);
-            setIsSocketConnectedState(false);
+            
             // 연결이 끊겼을 때도 isMatching 상태 유지 (서버 재연결 시 다시 확인)
         };
 
         const handleConnectError = (err: any) => {
             console.error('Match socket connection error:', err.message);
             setError(`매칭 서버 연결 실패: ${err.message}`);
-            setIsSocketConnectedState(false);
+            
+            // 연결이 끊겼을 때도 isMatching 상태 유지 (서버 재연결 시 다시 확인)
         };
 
         const handleMatchSuccess = (data: { roomId: string; partner: any; creditUsed: number }) => {
@@ -290,9 +290,9 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         isLoadingProfile 
         || isLoadingMatchAction 
         || isLoadingRoomStatus
-        || !isSocketConnectedState
+        || !isSocketConnected
         || (!isMatching && !matchedRoomId && !hasSufficientCredit),
-    [isLoadingProfile, isLoadingMatchAction, isLoadingRoomStatus, isSocketConnectedState, isMatching, matchedRoomId, hasSufficientCredit]);
+    [isLoadingProfile, isLoadingMatchAction, isLoadingRoomStatus, isSocketConnected, isMatching, matchedRoomId, hasSufficientCredit]);
 
     // 크레딧 변경 감지 - 불필요한 렌더링 방지
     useEffect(() => {

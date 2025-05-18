@@ -72,9 +72,27 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.log('소켓 연결 성공:', socket.id);
       setIsConnected(true);
       
-      // 수동 인증 이벤트 호출
+      // 수동 인증 이벤트 호출 - 데이터 형식 변경
       console.log('인증 이벤트 호출...');
-      socket.emit('authenticate', { token, userId });
+      
+      // 디버깅을 위한 토큰 로그 (일부만 출력)
+      if (token) {
+        console.log('인증 토큰:', token.slice(0, 15) + '...');
+      }
+      
+      // 서버가 기대하는 형식으로 인증 데이터 전송
+      socket.emit('authenticate', { 
+        userId, 
+        token 
+      });
+      
+      // 소켓 인증 상태 확인을 위한 타임아웃 설정
+      setTimeout(() => {
+        // 연결은 되었지만 인증이 안되어 끊긴 경우
+        if (!socket.connected) {
+          console.error('소켓 인증 실패: 서버에서 연결 종료');
+        }
+      }, 3000);
     });
 
     // 인증 성공/실패 처리
