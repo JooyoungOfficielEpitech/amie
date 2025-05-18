@@ -4,15 +4,21 @@ import { useAuth } from './AuthContext';
 
 // 환경에 맞는 소켓 베이스 URL을 반환하는 함수
 const getSocketBaseUrl = () => {
+  console.log('[SocketContext] 환경 확인:', import.meta.env.PROD ? 'Production' : 'Development');
+  
   // 프로덕션 환경에서는 현재 호스트 기반으로 WebSocket URL 생성
   if (import.meta.env.PROD) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;  // host는 도메인과 포트를 포함합니다
-    return `${protocol}//${host}`;
+    const url = `${protocol}//${host}`;
+    console.log('[SocketContext] Production Socket URL:', url);
+    return url;
   }
   
   // 개발 환경에서는 환경 변수 또는 기본값 사용
-  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+  const devUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+  console.log('[SocketContext] Development Socket URL:', devUrl);
+  return devUrl;
 };
 
 interface SocketContextType {
@@ -56,7 +62,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     // 소켓 연결 설정
     const socket = io(`${baseUrl}/match`, {
-      auth: { token },
+      auth: { 
+        token,
+        userId
+      },
+      query: {
+        token,
+        userId
+      },
       transports: ['websocket'],
       reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
@@ -75,15 +88,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // 수동 인증 이벤트 호출 - 데이터 형식 변경
       console.log('인증 이벤트 호출...');
       
-      // 디버깅을 위한 토큰 로그 (일부만 출력)
-      if (token) {
-        console.log('인증 토큰:', token.slice(0, 15) + '...');
+      // 인증 데이터 준비
+      let authToken = token;
+      let userIdToSend = userId;
+      
+      // 디버깅을 위한 토큰과 userId 로그
+      if (authToken) {
+        console.log('인증 토큰:', authToken.slice(0, 15) + '...');
+      } else {
+        console.error('인증 토큰이 없습니다!');
+      }
+      
+      if (userIdToSend) {
+        console.log('사용자 ID:', userIdToSend);
+      } else {
+        console.error('사용자 ID가 없습니다!');
       }
       
       // 서버가 기대하는 형식으로 인증 데이터 전송
+      console.log('인증 이벤트 데이터:', { userId: userIdToSend, token: authToken ? '(토큰 존재)' : '(토큰 없음)' });
+      
+      // 인증 이벤트 발송
       socket.emit('authenticate', { 
-        userId, 
-        token 
+        userId: userIdToSend, 
+        token: authToken 
       });
       
       // 소켓 인증 상태 확인을 위한 타임아웃 설정
@@ -91,16 +119,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // 연결은 되었지만 인증이 안되어 끊긴 경우
         if (!socket.connected) {
           console.error('소켓 인증 실패: 서버에서 연결 종료');
+        } else {
+          console.log('소켓 연결 유지됨 - 인증 가능성 있음');
         }
       }, 3000);
     });
-
-    // 인증 성공/실패 처리
-    socket.on('authenticated', (data: { success: boolean }) => {
-      console.log('인증 성공:', data);
+    
+    // 인증 결과 이벤트 리스너 추가
+    socket.on('authenticated', (response: any) => {
+      console.log('소켓 인증 성공:', response);
     });
     
-    socket.on('error', (error: { message: string }) => {
+    socket.on('error', (error: any) => {
       console.error('소켓 오류:', error);
     });
 
