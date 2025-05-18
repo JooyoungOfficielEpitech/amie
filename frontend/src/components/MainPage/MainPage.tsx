@@ -59,75 +59,26 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
 
     usePayment();
 
-    // 소켓 연결 설정 - 한 번만 초기화하도록 개선
+    // 중복된 소켓 연결 로직을 제거하고 SocketContext의 소켓을 사용
     useEffect(() => {
-        // 이미 초기화되었거나 프로필이 로드되지 않은 경우 스킵
-        if (socketInitializedRef.current || !profile?.id) {
-            return;
-        }
-        
-        // 토큰 처리
-        let processedToken = '';
-        try {
-            const token = localStorage.getItem('accessToken');
-            if (!token) {
-                console.error("No token found in localStorage");
-                setError("로그인이 필요합니다.");
-                return;
-            }
-            
-            // JSON 형식인지 확인
-            try {
-                const tokenObj = JSON.parse(token);
-                processedToken = tokenObj.token || tokenObj.accessToken || token;
-                console.log('[Socket Debug] Token appears to be JSON, extracted:', processedToken.slice(0, 10) + '...');
-            } catch (error) {
-                console.log('[Socket Debug] Token is not JSON, using as is:', token.slice(0, 10) + '...');
-                processedToken = token;
-            }
-            
-            // Bearer 접두사가 있으면 제거
-            if (processedToken.startsWith('Bearer ')) {
-                processedToken = processedToken.substring(7);
-                console.log('[Socket Debug] Removed Bearer prefix:', processedToken.slice(0, 10) + '...');
-            }
-        } catch (error) {
-            console.error('[Socket Debug] Error processing token:', error);
-        }
-        
-        if (!processedToken) {
-            console.error("No token found, cannot connect to match socket");
-            setError("로그인이 필요합니다.");
+        if (!profile || !profile.id) {
+            console.log('[MainPage] Profile not ready, skipping socket setup');
             return;
         }
 
-        console.log('[Socket Debug] Connecting with token:', processedToken.slice(0, 10) + '...');
-        
-        // 사용자 ID 가져오기 - profile에서 직접 사용
-        const userId = profile.id;
-        console.log('[Socket Debug] Using profile ID for socket connection:', userId);
+        // 이미 초기화되었으면 중복 작업 방지
+        if (socketInitializedRef.current) {
+            console.log('[MainPage] Socket already initialized');
+            return;
+        }
 
-        // 소켓 연결 설정 - 연결 옵션 최적화
-        const socket = io(`${import.meta.env.VITE_API_BASE_URL}/match`, {
-             auth: { 
-                token: processedToken,
-                userId: userId
-             },
-             transports: ['websocket'], // WebSocket만 사용하여 연결 안정성 향상
-             reconnection: true,
-             reconnectionAttempts: Infinity,
-             reconnectionDelay: 5000, // 재연결 간격 증가
-             reconnectionDelayMax: 30000,
-             timeout: 20000,
-             // @ts-ignore - socket.io-client 타입 정의에는 없지만 실제 라이브러리에서는 지원되는 옵션
-             pingTimeout: 30000,
-             // @ts-ignore
-             pingInterval: 25000,
-             forceNew: false, // 불필요한 새 연결 방지
-             autoConnect: true // 자동 연결
-        });
-        
-        setMatchSocket(socket);
+        // SocketContext에서 제공하는 소켓 사용
+        if (!matchSocket) {
+            console.log('[MainPage] No socket from context, waiting for connection');
+            return;
+        }
+
+        console.log('[MainPage] Using socket from SocketContext');
         socketInitializedRef.current = true;
 
         // 소켓 이벤트 핸들러 정의 - 컴포넌트 내부로 이동
@@ -142,10 +93,10 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                 console.log('[MainPage Socket Connect] User is already in matching state based on profile data');
             }
             
-            console.log(`[MainPage] Checking match status with userId: ${userId}`);
+            console.log(`[MainPage] Checking match status with userId: ${profile.id}`);
             
             // 연결 시 매칭 상태 확인 한 번만 요청
-            socket.emit('check_match_status');
+            matchSocket.emit('check_match_status');
         };
 
         const handleDisconnect = (reason: any) => {
@@ -218,23 +169,35 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         };
 
         // 이벤트 리스너 등록
-        socket.on('connect', handleConnect);
-        socket.on('disconnect', handleDisconnect);
-        socket.on('connect_error', handleConnectError);
-        socket.on('match_success', handleMatchSuccess);
-        socket.on('match_error', handleMatchError);
-        socket.on('match_cancelled', handleMatchCancelled);
-        socket.on('cancel_error', handleCancelError);
-        socket.on('current_match_status', handleCurrentMatchStatus);
+        matchSocket.on('connect', handleConnect);
+        matchSocket.on('disconnect', handleDisconnect);
+        matchSocket.on('connect_error', handleConnectError);
+        matchSocket.on('match_success', handleMatchSuccess);
+        matchSocket.on('match_error', handleMatchError);
+        matchSocket.on('match_cancelled', handleMatchCancelled);
+        matchSocket.on('cancel_error', handleCancelError);
+        matchSocket.on('current_match_status', handleCurrentMatchStatus);
 
-        // 컴포넌트 언마운트 시만 소켓 정리 - 이벤트는 여기서 정리하지 않음
+        // 만약 이미 연결된 상태라면 수동으로 핸들러 호출
+        if (matchSocket.connected) {
+            handleConnect();
+        }
+
+        // 컴포넌트 언마운트 시 이벤트 리스너 정리
         return () => {
-            console.log('MainPage unmounting - Disconnecting match socket...');
-            if (socket.connected) {
-                socket.disconnect();
+            console.log('MainPage unmounting - Cleaning up socket event listeners');
+            if (matchSocket) {
+                matchSocket.off('connect', handleConnect);
+                matchSocket.off('disconnect', handleDisconnect);
+                matchSocket.off('connect_error', handleConnectError);
+                matchSocket.off('match_success', handleMatchSuccess);
+                matchSocket.off('match_error', handleMatchError);
+                matchSocket.off('match_cancelled', handleMatchCancelled);
+                matchSocket.off('cancel_error', handleCancelError);
+                matchSocket.off('current_match_status', handleCurrentMatchStatus);
             }
         };
-    }, [profile?.id, profile?.isWaitingForMatch, fetchCredit, onCreditUpdate]);
+    }, [profile?.id, profile?.isWaitingForMatch, fetchCredit, onCreditUpdate, matchSocket]);
 
     // 매칭 상태가 변경될 때마다 파동 애니메이션 상태 업데이트
     useEffect(() => {
