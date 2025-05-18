@@ -1,5 +1,12 @@
 import axios from 'axios';
 
+// ===================== Axios 디버깅 코드 (나중에 제거) =====================
+console.log('🔍 === Axios 설정 디버깅 시작 ===');
+console.log('🔹 VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+console.log('🔹 예상되는 API 요청 경로:', `${import.meta.env.VITE_API_BASE_URL || ''}/api/credit/usage-info`);
+console.log('🔍 === Axios 설정 디버깅 종료 ===');
+// =========================================================================
+
 // 기본 axios 인스턴스 생성
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
@@ -55,6 +62,14 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // ===================== 요청 디버깅 코드 (나중에 제거) =====================
+    // 전체 URL 로깅
+    const fullUrl = `${config.baseURL || ''}${config.url}`;
+    console.log(`🔶 API 요청: [${config.method?.toUpperCase()}] ${fullUrl}`);
+    console.log('🔹 요청 헤더:', config.headers);
+    console.log('🔹 토큰 존재 여부:', token ? '있음' : '없음');
+    // =========================================================================
     
     // 요청 로깅 (디버깅용)
     console.log(`API 요청: [${config.method?.toUpperCase()}] ${config.url}`, config.params || {});
