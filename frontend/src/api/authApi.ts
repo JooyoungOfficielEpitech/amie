@@ -38,7 +38,7 @@ export const authApi = {
   login: async (credentials: LoginCredentials) => {
     try {
       console.log('[authApi.login] 로그인 요청:', credentials);
-      const response = await axiosInstance.post('/api/auth/login', credentials);
+      const response = await axiosInstance.post('/auth/login', credentials);
       console.log('[authApi.login] API 응답:', response.data);
       return response.data;
     } catch (error) {
@@ -50,7 +50,7 @@ export const authApi = {
   register: async (userData: RegisterData) => {
     try {
       console.log("[authApi.register] 회원가입 요청:", userData);
-      const response = await axiosInstance.post('/api/auth/register', userData);
+      const response = await axiosInstance.post('/auth/register', userData);
       console.log("[authApi.register] API 응답:", response.data);
       return response.data;
     } catch (error) {
@@ -62,7 +62,7 @@ export const authApi = {
   socialLogin: async (data: SocialLoginData) => {
     try {
       console.log('[authApi.socialLogin] 소셜 로그인 요청:', data);
-      const response = await axiosInstance.post('/api/auth/social-login', data);
+      const response = await axiosInstance.post('/auth/social-login', data);
       console.log('[authApi.socialLogin] API 응답:', response.data);
       return response.data;
     } catch (error) {
@@ -74,7 +74,7 @@ export const authApi = {
   socialRegister: async (userData: SocialRegisterData) => {
     try {
       console.log('[authApi.socialRegister] 소셜 회원가입 요청:', userData);
-      const response = await axiosInstance.post('/api/auth/social-register', userData);
+      const response = await axiosInstance.post('/auth/social-register', userData);
       console.log('[authApi.socialRegister] API 응답:', response.data);
       return response.data;
     } catch (error) {

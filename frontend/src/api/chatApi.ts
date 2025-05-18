@@ -7,7 +7,7 @@ export interface SendMessageData {
 
 export const getChatRoomStatus = async (roomId: string): Promise<{ success: boolean; isActive?: boolean; message?: string }> => {
     try {
-        const response = await axiosInstance.get(`/api/chat/room/${roomId}/status`);
+        const response = await axiosInstance.get(`/chat/room/${roomId}/status`);
         return response.data; // Expecting { success: boolean, isActive: boolean }
     } catch (error: any) {
         console.error(`Error fetching chat room status for ${roomId}:`, error);
@@ -18,7 +18,7 @@ export const getChatRoomStatus = async (roomId: string): Promise<{ success: bool
 
 export const getChatHistory = async (roomId: string): Promise<{ success: boolean; messages?: any[]; message?: string }> => {
     try {
-        const response = await axiosInstance.get(`/api/chat/room/${roomId}/history`);
+        const response = await axiosInstance.get(`/chat/room/${roomId}/history`);
         return response.data; // Expecting { success: boolean, messages: ChatMessage[] }
     } catch (error: any) {
         console.error(`Error fetching chat history for ${roomId}:`, error);
@@ -30,7 +30,7 @@ export const getChatHistory = async (roomId: string): Promise<{ success: boolean
 export const chatApi = {
   getRooms: async () => {
     try {
-      const response = await axiosInstance.get('/api/chat/rooms');
+      const response = await axiosInstance.get('/chat/rooms');
       return response.data;
     } catch (error) {
       throw error;
@@ -39,7 +39,7 @@ export const chatApi = {
   
   getRoom: async (roomId: string) => {
     try {
-      const response = await axiosInstance.get(`/api/chat/room/${roomId}`);
+      const response = await axiosInstance.get(`/chat/room/${roomId}`);
       return response.data;
     } catch (error) {
       throw error;
@@ -48,7 +48,7 @@ export const chatApi = {
   
   sendMessage: async (data: SendMessageData) => {
     try {
-      const response = await axiosInstance.post('/api/chat/message', data);
+      const response = await axiosInstance.post('/chat/message', data);
       return response.data;
     } catch (error) {
       throw error;

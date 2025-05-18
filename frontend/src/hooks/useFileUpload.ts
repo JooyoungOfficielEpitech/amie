@@ -68,7 +68,7 @@ export const useFileUpload = (options?: FileUploadOptions) => {
       }
 
       const response = await axios.post(
-        mergedOptions.url || '/api/upload/file',
+        mergedOptions.url || '/upload/file',
         formData,
         { headers }
       );

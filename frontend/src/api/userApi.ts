@@ -33,7 +33,7 @@ export const updateUserProfile = async (profileData: {
 }): Promise<boolean> => {
   try {
     console.log('[userApi.updateUserProfile] 프로필 업데이트 요청:', profileData);
-    const response = await axiosInstance.patch('/api/user/profile', profileData);
+    const response = await axiosInstance.patch('/user/profile', profileData);
     console.log('[userApi.updateUserProfile] API 응답:', response.data);
     return response.data.success;
   } catch (error) {
@@ -47,7 +47,7 @@ export const updateUserPhoto = async (photoIndex: number, photoData: string): Pr
     console.log(`[userApi.updateUserPhoto] 사진 업데이트 요청: 인덱스 ${photoIndex}`);
     // 스웨거 문서에 해당 엔드포인트가 없으므로 프로필 수정 API로 대체
     // 실제로는 백엔드와 협의 필요
-    const response = await axiosInstance.patch('/api/user/profile', { 
+    const response = await axiosInstance.patch('/user/profile', { 
       profileImages: [photoData] 
     });
     console.log('[userApi.updateUserPhoto] API 응답:', response.data);
@@ -62,7 +62,7 @@ export const userApi = {
   getProfile: async (): Promise<{ success: boolean; user?: UserProfile; message?: string }> => {
     try {
       // console.log('[userApi.getProfile] 프로필 조회 요청');
-      const response = await axiosInstance.get('/api/user/profile');
+      const response = await axiosInstance.get('/user/profile');
       // console.log('[userApi.getProfile] API 응답:', response.data);
       
       // Return the structure expected by App.tsx, based on Swagger definition
@@ -101,7 +101,7 @@ export const userApi = {
   updateProfile: async (data: ProfileData) => {
     try {
       // console.log('[userApi.updateProfile] 프로필 업데이트 요청:', data);
-      const response = await axiosInstance.patch('/api/user/profile', data);
+      const response = await axiosInstance.patch('/user/profile', data);
       // console.log('[userApi.updateProfile] API 응답:', response.data);
       return response.data;
     } catch (error) {
@@ -113,7 +113,7 @@ export const userApi = {
   deleteAccount: async (userId: string) => {
     // console.log(`[userApi.deleteAccount] 계정 삭제 요청: ID=${userId}`);
     try {
-      const response = await axiosInstance.delete(`/api/users/${userId}`); // Note: path might be /api/user/:id
+      const response = await axiosInstance.delete(`/users/${userId}`); // Note: path might be /user/:id
       // console.log('[userApi.deleteAccount] API 응답:', response.data);
       return response.data;
     } catch (error) {
@@ -122,11 +122,11 @@ export const userApi = {
     }
   },
   
-  // getUserCredit function restored to use /api/credit/current
+  // getUserCredit function restored to use /credit/current
   getUserCredit: async (): Promise<{ success: boolean; credit?: number; message?: string }> => {
     try {
-      console.log('[userApi.getUserCredit] 크레딧 조회 요청 (/api/credit/current)');
-      const response = await axiosInstance.get('/api/credit/current');
+      console.log('[userApi.getUserCredit] 크레딧 조회 요청 (/credit/current)');
+      const response = await axiosInstance.get('/credit/current');
       console.log('[userApi.getUserCredit] API 응답:', response.data);
       
       // Expecting backend response { success: true, data: { credit: number } }
@@ -147,9 +147,9 @@ export const userApi = {
   rechargeCredit: async (amount: number): Promise<{ success: boolean; credit?: number; message?: string }> => {
     try {
       // console.log('[userApi.rechargeCredit] 크레딧 충전 요청:', amount);
-      // Assuming a recharge endpoint exists, e.g., /api/user/recharge
+      // Assuming a recharge endpoint exists, e.g., /user/recharge
       // The actual endpoint might differ based on backend routes
-      const response = await axiosInstance.post('/api/user/recharge', { amount }); 
+      const response = await axiosInstance.post('/user/recharge', { amount }); 
       // console.log('[userApi.rechargeCredit] API 응답:', response.data);
       
       // Assuming response contains { success: boolean, credit: number } or { success: false, message: string }

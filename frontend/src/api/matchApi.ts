@@ -3,7 +3,7 @@ import axiosInstance from './axiosConfig';
 export const matchApi = {
   requestMatch: async () => {
     try {
-      const response = await axiosInstance.post('/api/match/request');
+      const response = await axiosInstance.post('/match/request');
       return response.data;
     } catch (error) {
       throw error;
@@ -12,7 +12,7 @@ export const matchApi = {
   
   getStatus: async () => {
     try {
-      const response = await axiosInstance.get('/api/match/status');
+      const response = await axiosInstance.get('/match/status');
       return response.data;
     } catch (error) {
       throw error;
@@ -21,7 +21,7 @@ export const matchApi = {
   
   cancelMatch: async () => {
     try {
-      const response = await axiosInstance.post('/api/match/cancel');
+      const response = await axiosInstance.post('/match/cancel');
       return response.data;
     } catch (error) {
       throw error;

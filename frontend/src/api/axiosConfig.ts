@@ -3,7 +3,7 @@ import axios from 'axios';
 // ===================== Axios 디버깅 코드 (나중에 제거) =====================
 console.log('🔍 === Axios 설정 디버깅 시작 ===');
 console.log('🔹 VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
-console.log('🔹 예상되는 API 요청 경로:', `${import.meta.env.VITE_API_BASE_URL || ''}/api/credit/usage-info`);
+console.log('🔹 예상되는 API 요청 경로:', `${import.meta.env.VITE_API_BASE_URL || ''}/credit/usage-info`);
 console.log('🔍 === Axios 설정 디버깅 종료 ===');
 // =========================================================================
 
@@ -63,36 +63,6 @@ axiosInstance.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // 프로덕션 환경에서 API 경로 조정 (Nginx 프록시 고려)
-    if (import.meta.env.PROD && config.url) {
-      // 절대 URL이 아닌 요청만 처리 (https://로 시작하지 않는 경우)
-      if (!config.url.startsWith('http')) {
-        // API 중복 경로 처리: /api/api/ -> /api/로 변환
-        if (config.url.startsWith('/api/api/')) {
-          const newUrl = config.url.replace('/api/api/', '/api/');
-          console.log(`[API] 중복 경로 정정: ${config.url} -> ${newUrl}`);
-          config.url = newUrl;
-        }
-        
-        // 다른 백엔드 API 경로 처리 (이전 코드)
-        else if (config.url.startsWith('/auth/')) {
-          const newUrl = config.url.replace('/auth', '');
-          console.log(`[API] 경로 변환: ${config.url} -> ${newUrl} (프로덕션 환경 자동 조정)`);
-          config.url = newUrl;
-        }
-        // 이미 처리된 경로
-        else if (config.url.startsWith('/credit/') || 
-                config.url.startsWith('/match/') ||
-                config.url.startsWith('/chat/') ||
-                config.url.startsWith('/user/')) {
-          console.log(`[API] 경로 유지: ${config.url} (이미 처리된 경로)`);
-        }
-        
-        // 디버깅: 최종 URL 출력
-        const finalUrl = `${config.baseURL || ''}${config.url}`;
-        console.log(`[API] 최종 요청 URL: ${finalUrl}`);
-      }
-    }
     
     // ===================== 요청 디버깅 코드 (나중에 제거) =====================
     // 전체 URL 로깅

@@ -77,7 +77,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
             setIsLoading(true);
             setError(null);
             try {
-                const response = await fetchWithAuth('/api/match/status'); // 이 API는 현재 사용자의 매칭 상태를 가져옴
+                const response = await fetchWithAuth('/match/status'); // 이 API는 현재 사용자의 매칭 상태를 가져옴
                 const data: MatchStatusResponse = await response.json();
 
                 console.log('[ProfileCard] 매칭 상태 응답:', data);
@@ -141,7 +141,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
                 
                 try {
                     // API 호출하여 서버에 잠금 해제 상태 저장
-                    const response = await axiosInstance.post(`/api/chat-rooms/${currentChatRoomId}/unlock-slot`, { slotIndex: photoIndex });
+                    const response = await axiosInstance.post(`/chat-rooms/${currentChatRoomId}/unlock-slot`, { slotIndex: photoIndex });
                     
                     if (!response.data.success) {
                         throw new Error(response.data.error || '사진 해제에 실패했습니다.');

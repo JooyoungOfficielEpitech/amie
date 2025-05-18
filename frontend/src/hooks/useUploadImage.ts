@@ -40,7 +40,7 @@ export const useUploadImage = (options?: UploadImageOptions) => {
       }
 
       const response = await axios.post(
-        mergedOptions.url || '/api/upload',
+        mergedOptions.url || '/upload',
         formData,
         { headers }
       );
