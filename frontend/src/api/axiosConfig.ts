@@ -63,6 +63,44 @@ axiosInstance.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
+    // 프로덕션 환경에서 API 경로 조정 (Nginx 프록시 고려)
+    if (import.meta.env.PROD && !import.meta.env.VITE_API_BASE_URL && config.url) {
+      // 절대 URL이 아닌 요청만 처리 (https://로 시작하지 않는 경우)
+      if (!config.url.startsWith('http')) {
+        // API 경로 패턴 확인 및 변환
+        // 1. /api/로 시작하는 경로 처리
+        if (config.url.startsWith('/api/')) {
+          const newUrl = config.url.replace('/api', '');
+          console.log(`[API] 경로 변환: ${config.url} -> ${newUrl} (프로덕션 환경 자동 조정)`);
+          config.url = newUrl;
+        }
+        // 2. /auth/로 시작하는 경로 처리
+        else if (config.url.startsWith('/auth/')) {
+          const newUrl = config.url.replace('/auth', '');
+          console.log(`[API] 경로 변환: ${config.url} -> ${newUrl} (프로덕션 환경 자동 조정)`);
+          config.url = newUrl;
+        }
+        // 3. 다른 백엔드 API 경로 처리 (필요에 따라 추가)
+        else if (config.url.startsWith('/user/') || 
+                config.url.startsWith('/credit/') || 
+                config.url.startsWith('/match/') ||
+                config.url.startsWith('/chat/')) {
+          // 이미 접두사가 제거된 경로는 그대로 유지
+          console.log(`[API] 경로 유지: ${config.url} (이미 처리된 경로)`);
+        }
+        // 4. 이외 다른 경로는 경고 로그 출력
+        else {
+          console.warn(`[API] 처리되지 않은 경로 패턴: ${config.url}`);
+        }
+        
+        // 추가 디버깅: 최종 URL 출력
+        const finalUrl = `${config.baseURL || ''}${config.url}`;
+        console.log(`[API] 최종 요청 URL: ${finalUrl}`);
+      } else {
+        console.warn(`[API] 절대 URL 감지: ${config.url} (변환 없이 그대로 사용)`);
+      }
+    }
+    
     // ===================== 요청 디버깅 코드 (나중에 제거) =====================
     // 전체 URL 로깅
     const fullUrl = `${config.baseURL || ''}${config.url}`;
