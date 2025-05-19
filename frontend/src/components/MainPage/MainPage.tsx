@@ -424,15 +424,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                              <p>프로필 정보를 불러올 수 없습니다.</p>
                          </section>
                      )}
-
-                    <section className={styles.contentBox}>
-                        <h2 className={styles.boxTitle}>{AppStrings.MAINPAGE_USAGE_GUIDE_TITLE}</h2>
-                        <ul className={styles.guideList}>
-                            <li><span className={styles.guideNumber}>1</span> {AppStrings.MAINPAGE_GUIDE_ITEM_1}</li>
-                            <li><span className={styles.guideNumber}>2</span> {AppStrings.MAINPAGE_GUIDE_ITEM_2}</li>
-                            <li><span className={styles.guideNumber}>3</span> {AppStrings.MAINPAGE_GUIDE_ITEM_3}</li>
-                        </ul>
-                    </section>
                 </main>
             </div>
         </div>
