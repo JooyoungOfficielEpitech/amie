@@ -6,6 +6,25 @@ import ProfileCard from './ProfileCard';
 import styles from './ChatPage.module.css';
 import { chatApi } from '../../api'; // <-- Import chatApi
 
+// 환경에 맞는 소켓 베이스 URL을 반환하는 함수 (SocketContext와 동일한 로직)
+const getSocketBaseUrl = () => {
+  console.log('[ChatPage] 환경 확인:', import.meta.env.PROD ? 'Production' : 'Development');
+  
+  // 프로덕션 환경에서는 현재 호스트 기반으로 WebSocket URL 생성
+  if (import.meta.env.PROD) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;  // host는 도메인과 포트를 포함
+    const url = `${protocol}//${host}`;
+    console.log('[ChatPage] Production Socket URL:', url);
+    return url;
+  }
+  
+  // 개발 환경에서는 환경 변수 또는 기본값 사용
+  const devUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+  console.log('[ChatPage] Development Socket URL:', devUrl);
+  return devUrl;
+};
+
 // Define interface for chat messages matching backend structure
 interface ChatMessage {
     _id: string;       // Use _id from MongoDB
@@ -122,10 +141,19 @@ const ChatPage: React.FC<ChatPageProps> = ({
         // Socket debugging
         console.log('[Socket Debug - Chat] Connecting with token:', processedToken.slice(0, 10) + '...');
 
-        // Connect to the /chat namespace with the full URL and token query parameter
-        const socket = io(`${import.meta.env.VITE_API_BASE_URL}/chat?token=${encodeURIComponent(processedToken)}`, {
+        // 베이스 URL을 구하는 함수 사용
+        const baseUrl = getSocketBaseUrl();
+        console.log('[Socket Debug - Chat] 연결 URL:', `${baseUrl}/chat`);
+
+        // Connect to the /chat namespace with the correct URL
+        const socket = io(`${baseUrl}/chat`, {
              auth: { 
-                token: processedToken
+                token: processedToken,
+                userId  // userId도 함께 전송
+             },
+             query: {
+                token: processedToken,
+                userId  // userId도 query로 전송
              },
              transports: ['websocket'],
              reconnection: true,
@@ -143,6 +171,15 @@ const ChatPage: React.FC<ChatPageProps> = ({
         socket.on('connect', () => {
             console.log(`Connected to /chat namespace for room ${currentRoomId}`);
             setError(null);
+            
+            // 수동 인증 이벤트 호출
+            console.log('[ChatPage] 인증 이벤트 호출...');
+            socket.emit('authenticate', { 
+                userId, 
+                token: processedToken 
+            });
+            
+            // 인증 이후 방에 참여
             socket.emit('join-room', currentRoomId);
         });
 
@@ -159,6 +196,11 @@ const ChatPage: React.FC<ChatPageProps> = ({
         socket.on('error', (errorData: { message: string }) => {
             console.error('Chat Error from server:', errorData);
             setError(`채팅 오류: ${errorData.message}`);
+        });
+
+        // 인증 결과 이벤트 리스너 추가
+        socket.on('authenticated', (response: any) => {
+            console.log('[ChatPage] 인증 성공:', response);
         });
 
         // Listener for when a user disconnects (the event you added)
@@ -207,6 +249,11 @@ const ChatPage: React.FC<ChatPageProps> = ({
             socket.off('user-disconnected');
             socket.off('partner_left');
             socket.off('chat_left');
+            socket.off('authenticated'); // 인증 이벤트 리스너 제거
+            socket.off('error');
+            socket.off('connect');
+            socket.off('disconnect');
+            socket.off('connect_error');
         };
     // Re-run effect if currentRoomId changes (though ideally it shouldn't change often within the page)
     }, [currentRoomId, userId, onNavigateToDashboard]); // Add userId and onNavigateToDashboard to dependencies
