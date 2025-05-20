@@ -13,7 +13,7 @@ const REQUIRED_MATCHING_CREDIT = 10;
 // Interface for props - Updated
 interface HeaderProps {
     creditBalance: number | null;
-    onRefetchCredit: () => Promise<void>; // Expecting an async function
+    onRefetchCredit?: () => Promise<void>; // Make it optional to avoid breaking changes
     userGender?: string; // 사용자 성별 추가
     isAutoSearchEnabled?: boolean; // Auto search 상태
     onAutoSearchChange?: (enabled: boolean) => void; // Auto search 상태 변경 콜백
@@ -21,7 +21,6 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ 
     creditBalance: propsCreditBalance, 
-    onRefetchCredit, 
     userGender,
     isAutoSearchEnabled = false,
     onAutoSearchChange

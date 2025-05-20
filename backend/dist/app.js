@@ -38,17 +38,17 @@ app.use('/api-docs', swagger_1.swaggerUi.serve, swagger_1.swaggerUi.setup(swagge
 // Swagger JSON 파일을 정적 파일로 제공
 app.use('/swagger', express_1.default.static(path_1.default.join(__dirname, '../swagger')));
 // 라우트
-app.use('/api/auth', authRoutes_1.default);
-app.use('/api/user', userProfileRoutes_1.default);
-app.use('/api/users', userRoutes_1.default);
-app.use('/api/match', matchRoutes_1.default);
-app.use('/api/chat', chatRoutes_1.default);
-app.use('/api/queue', matchQueueRoutes_1.default);
-app.use('/api/chat-rooms', chatRoomRoutes_1.default);
-app.use('/api/messages', messageRoutes_1.default);
-app.use('/api/credits', creditLogRoutes_1.default);
-app.use('/api/credit', creditRoutes_1.default);
-app.use('/api/admin', adminRoutes_1.default);
+app.use('/auth', authRoutes_1.default);
+app.use('/user', userProfileRoutes_1.default);
+app.use('/users', userRoutes_1.default);
+app.use('/match', matchRoutes_1.default);
+app.use('/chat', chatRoutes_1.default);
+app.use('/queue', matchQueueRoutes_1.default);
+app.use('/chat-rooms', chatRoomRoutes_1.default);
+app.use('/messages', messageRoutes_1.default);
+app.use('/credits', creditLogRoutes_1.default);
+app.use('/credit', creditRoutes_1.default);
+app.use('/admin', adminRoutes_1.default);
 // 기본 라우트
 app.get('/', (req, res) => {
     res.send('API 실행 중...');

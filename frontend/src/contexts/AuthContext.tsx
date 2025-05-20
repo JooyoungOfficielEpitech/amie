@@ -8,6 +8,8 @@ export interface AuthContextType {
   login: (token: string) => void;
   logout: () => void;
   refreshUserInfo: () => Promise<void>;
+  verifyToken: () => Promise<boolean>;
+  isTokenVerified: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,7 +18,9 @@ const AuthContext = createContext<AuthContextType>({
   userId: null,
   login: () => {},
   logout: () => {},
-  refreshUserInfo: async () => {}
+  refreshUserInfo: async () => {},
+  verifyToken: async () => false,
+  isTokenVerified: false
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -25,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isTokenVerified, setIsTokenVerified] = useState<boolean>(false);
   
   // 요청 상태 추적을 위한 참조 변수
   const isRefreshingRef = useRef<boolean>(false);
@@ -160,6 +165,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoggedIn(false);
   }, []);
 
+  // 토큰 검증 함수
+  const verifyToken = useCallback(async (): Promise<boolean> => {
+    try {
+      // 실제 검증 로직: 서버에 요청하여 토큰 유효성 확인
+      const response = await userApi.getProfile();
+      const isValid = response.success;
+      
+      setIsTokenVerified(isValid);
+      
+      if (!isValid) {
+        // 토큰이 유효하지 않으면 로그아웃
+        logout();
+      }
+      
+      return isValid;
+    } catch (error) {
+      console.error("[AuthContext] Token verification failed:", error);
+      setIsTokenVerified(false);
+      logout();
+      return false;
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -168,7 +196,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userId,
         login,
         logout,
-        refreshUserInfo
+        refreshUserInfo,
+        verifyToken,
+        isTokenVerified
       }}
     >
       {children}

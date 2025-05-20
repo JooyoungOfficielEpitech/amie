@@ -9,7 +9,6 @@ import { UserProfile } from '../../api';
 
 // UI strings
 const MALE_SWITCH_LABEL = '자동 매칭 활성화';
-const CREDIT_INSUFFICIENT = '크레딧 부족';
 
 // 매칭에 필요한 크레딧
 const REQUIRED_MATCHING_CREDIT = 10;

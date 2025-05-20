@@ -319,7 +319,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
                     onNavigateToSettings={onNavigateToSettings}
                     currentView={currentView}
                     matchedRoomId={currentRoomId}
-                    onNavigateToChat={(roomId) => {}} // 이미 채팅방에 있으므로 빈 함수 전달
+                    onNavigateToChat={() => {}} // 이미 채팅방에 있으므로 빈 함수 전달
                 />
                 <main className={styles.chatArea}>
                     {isLoadingHistory && <p>채팅 기록 로딩 중...</p>} 

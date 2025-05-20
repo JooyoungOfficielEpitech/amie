@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import styles from './MainPage.module.css';
 import Sidebar from './Sidebar';
-import { userApi, UserProfile, chatApi } from '../../api';
+import { userApi, UserProfile } from '../../api';
 import amieLogo from '../../assets/amie_logo.png';
 import * as AppStrings from '../../constants/strings';
 import { usePayment } from '../../contexts/PaymentContext';
@@ -47,7 +47,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const { matchSocket, isConnected: isSocketConnected, initializationAttempted } = useSocket();
     const [isMatching, setIsMatching] = useState<boolean>(false);
     const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null);
-    const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false);
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
     
@@ -296,14 +295,14 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
 
     // 버튼 상태 관련 memoized 값들
     const buttonText = useMemo(() => 
-        isLoadingMatchAction || isLoadingRoomStatus 
+        isLoadingMatchAction 
             ? AppStrings.MAINPAGE_MATCHING_IN_PROGRESS
             : matchedRoomId 
             ? AppStrings.MAINPAGE_GO_TO_CHATROOM_BUTTON 
             : isMatching
             ? AppStrings.MAINPAGE_CANCEL_MATCHING_BUTTON
             : AppStrings.MAINPAGE_START_MATCHING_BUTTON,
-    [isLoadingMatchAction, isLoadingRoomStatus, matchedRoomId, isMatching]);
+    [isLoadingMatchAction, matchedRoomId, isMatching]);
     
     const hasSufficientCredit = useMemo(() => 
         contextCredit >= REQUIRED_MATCHING_CREDIT,
@@ -312,7 +311,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const isButtonDisabled = useMemo(() => {
         const disabled = isLoadingProfile 
           || isLoadingMatchAction 
-          || isLoadingRoomStatus
           || (!isSocketConnected && initializationAttempted) // 소켓 초기화 시도했는데 연결 안됨
           || (!isMatching && !matchedRoomId && !hasSufficientCredit);
         
@@ -320,7 +318,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
           'reasons:', {
             isLoadingProfile,
             isLoadingMatchAction,
-            isLoadingRoomStatus,
             socketStatus: `${isSocketConnected ? '연결됨' : '연결안됨'}(초기화:${initializationAttempted ? '시도함' : '안함'})`,
             matchingStatus: isMatching ? '매칭중' : '대기중',
             matchedRoom: !!matchedRoomId,
@@ -329,7 +326,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         );
         
         return disabled;
-    }, [isLoadingProfile, isLoadingMatchAction, isLoadingRoomStatus, isSocketConnected, 
+    }, [isLoadingProfile, isLoadingMatchAction, isSocketConnected, 
         initializationAttempted, isMatching, matchedRoomId, hasSufficientCredit]);
 
     // 크레딧 변경 감지 - 불필요한 렌더링 방지
@@ -489,7 +486,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                                     isButtonDisabled={isButtonDisabled}
                                     matchedRoomId={matchedRoomId}
                                     buttonText={buttonText}
-                                    isLoadingRoomStatus={isLoadingRoomStatus}
+                                    isLoadingRoomStatus={isLoadingMatchAction}
                                     matchSocket={matchSocket}
                                     matchError={matchError}
                                     setMatchError={setMatchError}
@@ -506,7 +503,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                                     isButtonDisabled={isButtonDisabled}
                                     matchedRoomId={matchedRoomId}
                                     buttonText={buttonText}
-                                    isLoadingRoomStatus={isLoadingRoomStatus}
+                                    isLoadingRoomStatus={isLoadingMatchAction}
                                     matchError={matchError}
                                     onMatchButtonClick={handleMatchButtonClick}
                                 />
