@@ -109,7 +109,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
              return;
         } 
 
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('accessToken');
         
         // 토큰 형식 확인 및 처리
         let processedToken = token || '';

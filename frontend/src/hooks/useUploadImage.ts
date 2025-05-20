@@ -29,7 +29,7 @@ export const useUploadImage = (options?: UploadImageOptions) => {
       formData.append(mergedOptions.fieldName || 'image', file);
 
       // 토큰 가져오기
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('accessToken');
       const headers: Record<string, string> = {
         'Content-Type': 'multipart/form-data',
         ...mergedOptions.headers

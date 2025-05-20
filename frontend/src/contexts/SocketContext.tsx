@@ -26,39 +26,46 @@ interface SocketContextType {
   isConnected: boolean;
   reconnect: () => void;
   disconnect: () => void;
+  initializationAttempted: boolean; // 초기화 시도 여부 추가
 }
 
 const SocketContext = createContext<SocketContextType>({
   matchSocket: null,
   isConnected: false,
   reconnect: () => {},
-  disconnect: () => {}
+  disconnect: () => {},
+  initializationAttempted: false
 });
 
 export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  console.log('[SocketContext] SocketProvider 렌더링');
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const socketRef = useRef<any | null>(null);
   const { token, userId } = useAuth(); // AuthContext에서 인증 정보 가져오기
+  const [initializationAttempted, setInitializationAttempted] = useState<boolean>(false);
 
   // 소켓 연결 초기화 함수
   const initSocket = () => {
+    console.log('[SocketContext] initSocket called');
+    
     if (!token || !userId) {
-      console.log('인증 정보가 없어서 소켓 연결을 시도하지 않습니다.');
-      return;
+      console.log('[SocketContext] 인증 정보가 없어서 소켓 연결을 시도하지 않습니다.');
+      return null; // 명시적으로 null 반환
     }
 
     // 이미 연결된 소켓이 있으면 먼저 연결 해제
     if (socketRef.current) {
+      console.log('[SocketContext] 기존 소켓 연결 해제');
       socketRef.current.disconnect();
     }
 
     // 소켓 기본 URL 결정
     const baseUrl = getSocketBaseUrl();
-    console.log('소켓 연결 초기화 중...', baseUrl);
-    console.log('토큰 존재 여부:', token ? '있음' : '없음');
-    console.log('userId 존재 여부:', userId ? '있음' : '없음');
+    console.log('[SocketContext] 소켓 연결 초기화 중...', baseUrl);
+    console.log('[SocketContext] 토큰 존재 여부:', token ? '있음' : '없음');
+    console.log('[SocketContext] userId 존재 여부:', userId ? '있음' : '없음');
     
     // 소켓 연결 설정
     const socket = io(`${baseUrl}/match`, {
@@ -71,14 +78,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         userId
       },
       transports: ['websocket'],
+      reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
       reconnectionDelayMax: 10000,
       timeout: 30000,
-      autoConnect: true
+      autoConnect: true,
+      forceNew: true
     });
 
     socketRef.current = socket;
+    console.log('[SocketContext] 소켓 객체 생성됨');
+
+    // 소켓 수동 연결 시도
+    socket.connect();
+    console.log('[SocketContext] 소켓 연결 시도 중...');
 
     // 소켓 이벤트 리스너 설정
     socket.on('connect', () => {
@@ -165,7 +179,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // 인증 정보(토큰, 유저ID)가 변경될 때마다 소켓 재연결
   useEffect(() => {
-    initSocket();
+    console.log('[SocketContext] Token or userId changed, initializing socket');
+    console.log('[SocketContext] Token exists:', !!token);
+    console.log('[SocketContext] UserId exists:', !!userId);
+    
+    if (token && userId) {
+      const socket = initSocket();
+      setInitializationAttempted(true);
+      
+      if (socket) {
+        console.log('[SocketContext] Socket initialization successful');
+      } else {
+        console.log('[SocketContext] Socket initialization returned no socket');
+      }
+    } else {
+      console.log('[SocketContext] Missing token or userId, socket initialization skipped');
+      setInitializationAttempted(true);
+    }
     
     // 컴포넌트 언마운트 시 정리
     return () => {
@@ -181,12 +211,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [token, userId]);
 
+  // 소켓 객체를 상태에 저장해서 컴포넌트에 전달
+  const [matchSocket, setMatchSocket] = useState<any | null>(null);
+  
+  // 소켓 참조가 변경될 때마다 상태 업데이트
+  useEffect(() => {
+    if (socketRef.current !== matchSocket) {
+      console.log('[SocketContext] Updating match socket reference for components');
+      setMatchSocket(socketRef.current);
+    }
+  }, [socketRef.current]);
+
   return (
     <SocketContext.Provider value={{ 
-      matchSocket: socketRef.current, 
+      matchSocket: matchSocket, // socketRef.current 대신 상태값 사용
       isConnected, 
       reconnect, 
-      disconnect 
+      disconnect,
+      initializationAttempted
     }}>
       {children}
     </SocketContext.Provider>

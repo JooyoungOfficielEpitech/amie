@@ -3,7 +3,7 @@
  * @returns {boolean} 토큰 유효 여부
  */
 export const isTokenValid = (): boolean => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken');
   
   // 토큰이 없으면 유효하지 않음
   if (!token) {
@@ -18,7 +18,7 @@ export const isTokenValid = (): boolean => {
     
     // 만료 시간이 있고, 현재 시간보다 이전이면 만료된 것
     if (payload.exp && payload.exp * 1000 < Date.now()) {
-      localStorage.removeItem('token');
+      localStorage.removeItem('accessToken');
       return false;
     }
     
@@ -34,14 +34,14 @@ export const isTokenValid = (): boolean => {
  * @param {string} token - JWT 토큰
  */
 export const setToken = (token: string): void => {
-  localStorage.setItem('token', token);
+  localStorage.setItem('accessToken', token);
 };
 
 /**
  * 토큰 제거 함수
  */
 export const removeToken = (): void => {
-  localStorage.removeItem('token');
+  localStorage.removeItem('accessToken');
 };
 
 /**
@@ -49,7 +49,7 @@ export const removeToken = (): void => {
  * @returns {string | null} JWT 토큰 또는 null
  */
 export const getToken = (): string | null => {
-  return localStorage.getItem('token');
+  return localStorage.getItem('accessToken');
 };
 
 /**

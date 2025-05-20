@@ -128,7 +128,7 @@ const ProfileSlideshow: React.FC = () => {
           {/* 처음에 7개의 프로필만 보여주기 */}
           {allProfiles.map((profile, index) => (
             <div
-              key={profile.id}
+              key={`${profile.id}-${index}`}
               className={styles.profileCard}
               style={{ 
                 backgroundImage: `url(${profile.imageUrl})`,

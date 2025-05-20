@@ -57,8 +57,14 @@ function App() {
   }, []); // Keep empty dependency array
 
   // Function to handle successful login - Wrapped in useCallback
-  const handleLoginSuccess = useCallback(() => {
+  const handleLoginSuccess = useCallback((token?: string) => {
     console.log("Login Success triggered!");
+    // 명시적으로 토큰을 accessToken으로 저장 (중복 작업이지만 안전성 확보)
+    if (token) {
+      localStorage.setItem('accessToken', token);
+      console.log("Token explicitly saved to localStorage as 'accessToken'");
+    }
+    
     setIsLoggedIn(true);
     setActiveView('dashboard'); 
     setShowSignupFlow(false); 
@@ -157,7 +163,7 @@ function App() {
               // Social signup might return token directly, normal signup might not
               if (response.token) {
                  console.log("Signup successful, logging in...");
-                 localStorage.setItem('token', response.token);
+                 localStorage.setItem('accessToken', response.token);
                  handleLoginSuccess(); // Use existing login success handler
                  
                  // 잠시 후 크레딧 정보를 명시적으로 다시 가져오기
@@ -195,7 +201,7 @@ function App() {
   // Function to handle logout
   const handleLogout = () => {
       console.log("Logout triggered!"); 
-      localStorage.removeItem('token'); // Ensure token is removed on logout
+      localStorage.removeItem('accessToken'); // Ensure token is removed on logout
       setIsLoggedIn(false);
       setShowSignupFlow(false); 
       setCurrentChatRoomId(null); 
@@ -316,8 +322,8 @@ function App() {
 
   // Use useEffect to check token and set initial login state
   useEffect(() => {
-    // Check if token exists in localStorage
-    const token = localStorage.getItem('token');
+    // Check if token exists in localStorage (using accessToken as standard)
+    const token = localStorage.getItem('accessToken');
     
     // 토큰 내용 디버깅
     if (token) {

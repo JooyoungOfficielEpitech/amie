@@ -18,19 +18,8 @@ const axiosInstance = axios.create({
 
 // 토큰 헤더에 추가하는 헬퍼 함수
 const getAuthToken = () => {
-  // 먼저 새 표준 키에서 토큰 시도
+  // accessToken 키에서만 토큰 시도 (통일된 방식)
   let token = localStorage.getItem('accessToken');
-  
-  // 없으면 레거시 키에서 시도
-  if (!token) {
-    token = localStorage.getItem('token');
-    
-    // 레거시 토큰이 있으면 새 형식으로 마이그레이션
-    if (token) {
-      console.log('[API] Migrating legacy token to new format');
-      localStorage.setItem('accessToken', token);
-    }
-  }
   
   if (!token) {
     console.warn('[API] No authentication token found');
@@ -102,7 +91,6 @@ axiosInstance.interceptors.response.use(
         console.warn('[API] Authentication failed (401), cleaning up credentials');
         // 로컬 스토리지에서 토큰 제거 및 모든 데이터 초기화
         localStorage.removeItem('accessToken');
-        localStorage.removeItem('token');
         localStorage.clear(); // 모든 localStorage 데이터 삭제
         
         // 로그인 페이지로 리다이렉트 - 단, 루프 방지

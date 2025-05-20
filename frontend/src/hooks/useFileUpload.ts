@@ -57,7 +57,7 @@ export const useFileUpload = (options?: FileUploadOptions) => {
       formData.append(mergedOptions.fieldName || 'file', file);
 
       // 토큰 가져오기
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('accessToken');
       const headers: Record<string, string> = {
         'Content-Type': 'multipart/form-data',
         ...mergedOptions.headers

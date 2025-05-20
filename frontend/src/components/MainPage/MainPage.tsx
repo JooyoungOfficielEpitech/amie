@@ -42,7 +42,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [matchError, setMatchError] = useState<string | null>(null);
-    const { matchSocket, isConnected: isSocketConnected } = useSocket();
+    const { matchSocket, isConnected: isSocketConnected, initializationAttempted } = useSocket();
     const [isMatching, setIsMatching] = useState<boolean>(false);
     const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null);
     const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false);
@@ -52,6 +52,22 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
     const profileFetchTimeRef = useRef<number>(0);
+    
+    // 로그에 소켓 상태 출력
+    console.log('[MainPage] Socket status - connected:', isSocketConnected, 'socket exists:', !!matchSocket, 'initialization attempted:', initializationAttempted);
+    
+    // 소켓 초기화 시도했지만 연결 안될 경우 자동 새로고침
+    useEffect(() => {
+      if (initializationAttempted && !isSocketConnected && !isLoadingProfile) {
+        console.log('[MainPage] 소켓 초기화 시도했으나 연결 안됨. 3초 후 자동 새로고침...');
+        const reloadTimer = setTimeout(() => {
+          console.log('[MainPage] 페이지 자동 새로고침 실행');
+          window.location.reload();
+        }, 3000);
+        
+        return () => clearTimeout(reloadTimer);
+      }
+    }, [initializationAttempted, isSocketConnected, isLoadingProfile]);
     
     // CreditContext 구독
     const { credit: contextCredit, fetchCredit } = useCredit();
@@ -286,13 +302,28 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         contextCredit >= REQUIRED_MATCHING_CREDIT,
     [contextCredit]);
     
-    const isButtonDisabled = useMemo(() => 
-        isLoadingProfile 
-        || isLoadingMatchAction 
-        || isLoadingRoomStatus
-        || !isSocketConnected
-        || (!isMatching && !matchedRoomId && !hasSufficientCredit),
-    [isLoadingProfile, isLoadingMatchAction, isLoadingRoomStatus, isSocketConnected, isMatching, matchedRoomId, hasSufficientCredit]);
+    const isButtonDisabled = useMemo(() => {
+        const disabled = isLoadingProfile 
+          || isLoadingMatchAction 
+          || isLoadingRoomStatus
+          || (!isSocketConnected && initializationAttempted) // 소켓 초기화 시도했는데 연결 안됨
+          || (!isMatching && !matchedRoomId && !hasSufficientCredit);
+        
+        console.log('[MainPage] Button disabled:', disabled, 
+          'reasons:', {
+            isLoadingProfile,
+            isLoadingMatchAction,
+            isLoadingRoomStatus,
+            socketStatus: `${isSocketConnected ? '연결됨' : '연결안됨'}(초기화:${initializationAttempted ? '시도함' : '안함'})`,
+            matchingStatus: isMatching ? '매칭중' : '대기중',
+            matchedRoom: !!matchedRoomId,
+            hasSufficientCredit
+          }
+        );
+        
+        return disabled;
+    }, [isLoadingProfile, isLoadingMatchAction, isLoadingRoomStatus, isSocketConnected, 
+        initializationAttempted, isMatching, matchedRoomId, hasSufficientCredit]);
 
     // 크레딧 변경 감지 - 불필요한 렌더링 방지
     useEffect(() => {
@@ -382,6 +413,13 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                     {isLoadingProfile && <p>프로필 로딩 중...</p>}
                     {/* Display general errors (profile loading, socket connection, match errors) */}
                     {error && !isLoadingProfile && <p className={styles.errorMessage}>{error}</p>}
+                    
+                    {/* 소켓 연결 문제 시 준비 중 메시지 표시 */}
+                    {initializationAttempted && !isSocketConnected && !isLoadingProfile && (
+                      <div className={styles.reloadButtonContainer}>
+                        <p className={styles.reloadMessage}>서버 연결 준비 중입니다. 잠시만 기다려주세요.</p>
+                      </div>
+                    )}
 
                     {/* 매칭 시 물방울 파동 애니메이션을 컨텐츠 박스 위에 배치 */}
                     <div style={{ position: 'relative' }}>

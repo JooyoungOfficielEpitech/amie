@@ -56,8 +56,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
             console.log('Login API Response:', response);
 
             if (response.success && response.token) {
-                // Store the token (e.g., in localStorage)
-                localStorage.setItem('token', response.token);
+                // Store the token using the new standard key
+                localStorage.setItem('accessToken', response.token);
                 // TODO: Implement rememberMe functionality if needed
                 if (rememberMe) {
                     console.log('Remember me is checked, but not implemented yet.');
@@ -102,7 +102,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
                 console.log('Backend socialLogin Response:', backendResponse);
 
                 if (backendResponse.success && backendResponse.token) {
-                    localStorage.setItem('token', backendResponse.token);
+                    localStorage.setItem('accessToken', backendResponse.token);
                     onLoginSuccess(backendResponse.token);
                 } else {
                     // Check if the reason is "needs registration"
@@ -149,6 +149,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
     const handleGoogleLoginClick = () => {
         setError(null);
         setIsLoading(true); // Set loading true when button is clicked
+        // Make sure localStorage is clear before Google login to prevent token issues
+        localStorage.clear();
         googleLogin(); // Initiate the Google login flow
     };
 
