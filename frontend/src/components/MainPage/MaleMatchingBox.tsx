@@ -74,15 +74,21 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
   useEffect(() => {
     const currentCredit = profile?.credit || 0;
     
-    if (isInsufficientCredit() && isAutoMatchEnabled) {
+    // 매칭 중이 아닐 때만 크레딧 부족 에러 표시
+    // 이미 매칭 중이라면 크레딧이 부족해도 에러 메시지 표시하지 않음
+    if (isInsufficientCredit() && isAutoMatchEnabled && !isMatching) {
       // 크레딧 부족하면 자동 매칭 비활성화하고 에러 표시
       setIsAutoMatchEnabled(false);
       localStorage.setItem('isAutoMatchEnabled', 'false');
       setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
     }
+    // 크레딧이 충분하고 이전에 크레딧 부족 오류가 표시된 경우, 오류 메시지 제거
+    else if (!isInsufficientCredit() && matchError === CREDIT_MESSAGES.INSUFFICIENT_CREDITS) {
+      setMatchError(null);
+    }
     
     console.log(`[MaleMatchingBox] Credit status updated - Current: ${currentCredit}, Required: ${REQUIRED_MATCHING_CREDIT}`);
-  }, [profile?.credit, isInsufficientCredit, isAutoMatchEnabled, setMatchError, hasSufficientCredit]);
+  }, [profile?.credit, isInsufficientCredit, isAutoMatchEnabled, setMatchError, hasSufficientCredit, isMatching, matchError]);
   
   // 초기 자동 매칭 상태 설정 - 한 번만 실행되도록 의존성 최적화
   useEffect(() => {
@@ -90,18 +96,12 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
       // 로컬 스토리지에서 자동 매칭 상태 확인
       const savedAutoMatchState = localStorage.getItem('isAutoMatchEnabled') === 'true';
       
-      // 초기 상태는 새로고침 시 항상 꺼진 상태로 시작하고
-      // 서버에서 매칭 상태 확인 후 필요 시 켜지도록 함
-      setIsAutoMatchEnabled(false);
+      // 페이지 로드 시 강제로 OFF 설정하지 않고 (이 라인 삭제됨)
+      // 로컬 상태 가져오기 (사용자 선호도 유지)
+      setIsAutoMatchEnabled(savedAutoMatchState);
       
-      // 크레딧이 부족한 경우 로컬 스토리지 상태도 초기화
-      if (!hasSufficientCredit && savedAutoMatchState) {
-        console.log('[MaleMatchingBox] Insufficient credit, resetting auto match state in local storage');
-        localStorage.setItem('isAutoMatchEnabled', 'false');
-      }
-      
-      // 실제 매칭 상태는 서버에서 받아올 예정이므로 여기서는 UI만 초기화
-      console.log(`[MaleMatchingBox] Initial auto match UI state reset to false, waiting for server status`);
+      // 실제 매칭 상태는 서버에서 받아올 예정
+      console.log(`[MaleMatchingBox] Initial auto match UI state set to ${savedAutoMatchState}, waiting for server status`);
       
       // 소켓 연결되어 있으면 즉시 서버 상태 확인 요청
       if (matchSocket?.connected) {
@@ -109,7 +109,7 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         matchSocket.emit('check_match_status');
       }
     }
-  }, [profile?.id, hasSufficientCredit, matchSocket]);
+  }, [profile?.id, matchSocket]);
   
   // 소켓 이벤트 설정 - 의존성 최적화
   useEffect(() => {
@@ -163,12 +163,17 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
       if (data.isMatching !== isMatching) {
         console.log(`[MaleMatchingBox] Synchronizing match state with server: ${data.isMatching}`);
         setIsMatching(data.isMatching);
+        
+        // 매칭 중으로 변경될 때 크레딧 부족 오류 메시지가 표시되어 있다면 제거
+        if (data.isMatching && matchError === CREDIT_MESSAGES.INSUFFICIENT_CREDITS) {
+          setMatchError(null);
+        }
       }
       
       // 2. 자동 매칭 스위치와 서버 매칭 상태 동기화 우선순위 조정
-      // 서버가 매칭 중이라고 하면 무조건 스위치 ON
+      // 서버가 매칭 중이라고 하면 무조건 스위치 ON (크레딧 상태 관계없이)
       if (data.isMatching) {
-        if (!isAutoMatchEnabled && hasSufficientCredit) {
+        if (!isAutoMatchEnabled) {
           console.log('[MaleMatchingBox] Server says user is matching, enabling auto match locally');
           setIsAutoMatchEnabled(true);
           localStorage.setItem('isAutoMatchEnabled', 'true');
@@ -178,9 +183,12 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
           setTimeout(() => {
             setIsToggleCooldown(false);
           }, 2000);
+          
+          // 매칭 중일 때는 크레딧 부족 경고를 표시하지 않음
+          // 이 부분 삭제
         }
       } 
-      // 서버가 매칭 중이 아니라고 하면 무조건 스위치 OFF (새로고침 시 우선순위)
+      // 서버가 매칭 중이 아니라고 하면 무조건 스위치 OFF
       else {
         if (isAutoMatchEnabled) {
           console.log('[MaleMatchingBox] Server says user is NOT matching, disabling auto match locally');
@@ -192,6 +200,11 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
           setTimeout(() => {
             setIsToggleCooldown(false);
           }, 2000);
+          
+          // 매칭이 종료되고 크레딧이 부족하면 에러 메시지 표시
+          if (!hasSufficientCredit) {
+            setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
+          }
         }
       }
       
