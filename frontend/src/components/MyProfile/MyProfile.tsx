@@ -14,6 +14,8 @@ interface MyProfileProps {
     onNavigateToMyProfile: () => void; // Pass this for active state if needed
     onNavigateToSettings: () => void; // Add prop type
     currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings'; // Add prop type
+    currentChatRoomId?: string | null; // 채팅방 ID 추가
+    onNavigateToChat?: (roomId: string) => void; // 채팅방 이동 함수 추가
 }
 
 // Define the structure for the profile data state
@@ -31,7 +33,9 @@ const MyProfile: React.FC<MyProfileProps> = ({
     onLogout, 
     onNavigateToMyProfile, 
     onNavigateToSettings,
-    currentView 
+    currentView,
+    currentChatRoomId,
+    onNavigateToChat
 }) => {
     // Remove originalUserProfile hardcoded data
     // const originalUserProfile = { ... };
@@ -44,6 +48,7 @@ const MyProfile: React.FC<MyProfileProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [initialProfileData, setInitialProfileData] = useState<ProfileStateData | null>(null);
     const [userId, setUserId] = useState<string | null>(null); // userStorageId에서 userId로 변경
+    const [matchedRoomId, setMatchedRoomId] = useState<string | null>(currentChatRoomId || null); // App에서 전달받은 값 사용
 
     // useImageUpload 훅 사용
     const { 
@@ -78,6 +83,10 @@ const MyProfile: React.FC<MyProfileProps> = ({
                 if (response.success && response.user) {
                     const userData: UserProfile = response.user; // UserProfile 타입 명시
                     setUserId(userData.id || null);
+                    // 매칭된 채팅방이 있으면 설정
+                    if (userData.matchedRoomId) {
+                        setMatchedRoomId(userData.matchedRoomId);
+                    }
 
                     // userData.profileImages (string[])를 사용
                     const fetchedPhotos = userData.profileImages || []; 
@@ -238,7 +247,7 @@ const MyProfile: React.FC<MyProfileProps> = ({
              <div className={styles.pageWrapper}>
                 {/* <Header /> */}
                 <div className={styles.contentWrapper}>
-                    <Sidebar {...{ onLogout, onNavigateToDashboard, onNavigateToMyProfile, onNavigateToSettings, currentView }} />
+                    <Sidebar {...{ onLogout, onNavigateToDashboard, onNavigateToMyProfile, onNavigateToSettings, currentView, matchedRoomId, onNavigateToChat: (roomId) => window.location.href = `/chat/${roomId}` }} />
                     <main className={styles.mainContent}><p>프로필 로딩 중...</p></main>
                 </div>
             </div>
@@ -251,7 +260,7 @@ const MyProfile: React.FC<MyProfileProps> = ({
             <div className={styles.pageWrapper}>
                 {/* <Header /> */}
                 <div className={styles.contentWrapper}>
-                    <Sidebar {...{ onLogout, onNavigateToDashboard, onNavigateToMyProfile, onNavigateToSettings, currentView }} />
+                    <Sidebar {...{ onLogout, onNavigateToDashboard, onNavigateToMyProfile, onNavigateToSettings, currentView, matchedRoomId, onNavigateToChat: (roomId) => window.location.href = `/chat/${roomId}` }} />
                     <main className={styles.mainContent}><p className={styles.errorMessage}>오류: {error}</p></main>
                 </div>
             </div>
@@ -264,7 +273,7 @@ const MyProfile: React.FC<MyProfileProps> = ({
             <div className={styles.pageWrapper}>
                 {/* <Header /> */}
                 <div className={styles.contentWrapper}>
-                    <Sidebar {...{ onLogout, onNavigateToDashboard, onNavigateToMyProfile, onNavigateToSettings, currentView }} />
+                    <Sidebar {...{ onLogout, onNavigateToDashboard, onNavigateToMyProfile, onNavigateToSettings, currentView, matchedRoomId, onNavigateToChat: (roomId) => window.location.href = `/chat/${roomId}` }} />
                     <main className={styles.mainContent}><p>프로필 데이터를 표시할 수 없습니다.</p></main>
                 </div>
             </div>
@@ -282,6 +291,8 @@ const MyProfile: React.FC<MyProfileProps> = ({
                     onNavigateToMyProfile={onNavigateToMyProfile}
                     onNavigateToSettings={onNavigateToSettings}
                     currentView={currentView} // Pass down
+                    matchedRoomId={matchedRoomId || currentChatRoomId || null}
+                    onNavigateToChat={onNavigateToChat || ((roomId) => window.location.href = `/chat/${roomId}`)}
                 />
                 
                 <main className={styles.mainContent}>

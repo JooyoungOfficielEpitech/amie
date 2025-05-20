@@ -75,4 +75,31 @@
 
 .rechargeButton:hover {
     background-color: #E43A5F;
+}
+
+/* Auto Search Button Styles */
+.autoSearchButton {
+    padding: 4px 10px;
+    background-color: #ccc; /* 기본 회색 */
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
+
+.autoSearchButton:hover {
+    opacity: 0.9;
+}
+
+.autoSearchActive {
+    background-color: #FE466C; /* Recharge 버튼과 동일한 색상 */
+}
+
+.creditError {
+    color: #ff0000;
+    font-weight: bold;
+    font-size: 1.2em;
 } 

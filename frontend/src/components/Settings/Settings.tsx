@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './Settings.module.css';
 import Sidebar from '../MainPage/Sidebar';
 import * as AppStrings from '../../constants/strings';
@@ -11,6 +11,8 @@ interface SettingsProps {
     onNavigateToMyProfile: () => void;
     onNavigateToSettings: () => void;
     currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
+    currentChatRoomId?: string | null;
+    onNavigateToChat?: (roomId: string) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -18,15 +20,41 @@ const Settings: React.FC<SettingsProps> = ({
     onLogout, 
     onNavigateToMyProfile, 
     onNavigateToSettings,
-    currentView 
+    currentView,
+    currentChatRoomId,
+    onNavigateToChat
 }) => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [matchedRoomId, setMatchedRoomId] = useState<string | null>(currentChatRoomId || null);
+
+    // 사용자 프로필 정보 로드하여 매칭된 채팅방이 있는지 확인
+    useEffect(() => {
+        if (!currentChatRoomId) {
+            const fetchProfile = async () => {
+                try {
+                    const response = await userApi.getProfile();
+                    if (response.success && response.user && response.user.matchedRoomId) {
+                        setMatchedRoomId(response.user.matchedRoomId);
+                    }
+                } catch (err) {
+                    console.error("Error fetching profile in Settings:", err);
+                }
+            };
+            
+            fetchProfile();
+        }
+    }, [currentChatRoomId]);
 
     const handleDeleteAccountClick = () => {
         setError(null);
         setIsConfirmModalOpen(true);
+    };
+
+    // 채팅방으로 이동하는 함수
+    const navigateToChat = (roomId: string) => {
+        window.location.href = `/chat/${roomId}`;
     };
 
     const confirmAccountDeletion = async () => {
@@ -101,6 +129,8 @@ const Settings: React.FC<SettingsProps> = ({
                     onNavigateToMyProfile={onNavigateToMyProfile}
                     onNavigateToSettings={onNavigateToSettings}
                     currentView={currentView}
+                    matchedRoomId={matchedRoomId}
+                    onNavigateToChat={onNavigateToChat || navigateToChat}
                 />
                 <main className={styles.mainContent}>
                     <h2>{AppStrings.SETTINGS_TITLE}</h2>

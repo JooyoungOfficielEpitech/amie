@@ -32,9 +32,10 @@ interface MainPageProps {
     onNavigateToSettings: () => void;
     currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
     onCreditUpdate: () => Promise<void>; // Add the missing prop type
+    isAutoSearchEnabled?: boolean; // Auto search 상태 추가
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate, isAutoSearchEnabled = false }) => {
     console.log('--- MainPage Component Render Start ---', currentView);
     
     // 상태들
@@ -141,6 +142,10 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             fetchCredit().catch(err => {
                 console.error('[MainPage] Error fetching credit after match:', err);
             });
+            
+            // 매칭 성공 즉시 채팅방으로 이동
+            console.log('[MainPage] Auto navigating to chat room after match success:', data.roomId);
+            onNavigateToChat(data.roomId);
         };
 
         const handleMatchError = (errorData: { message: string }) => {
@@ -224,26 +229,9 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const handleMatchButtonClick = useCallback(async () => {
         // 이미 매칭된 경우 채팅방으로 이동
         if (matchedRoomId) {
-            setIsLoadingRoomStatus(true);
-            setMatchError(null);
-            try {
-                const statusResponse = await chatApi.getChatRoomStatus(matchedRoomId);
-                if (statusResponse.success && statusResponse.isActive) {
-                    onNavigateToChat(matchedRoomId);
-                    setMatchedRoomId(null);
-                } else if (statusResponse.success && !statusResponse.isActive) {
-                    setMatchError(AppStrings.CHATPAGE_PARTNER_LEFT_MESSAGE);
-                    setMatchedRoomId(null);
-                    setIsMatching(false);
-                } else {
-                    setMatchError(statusResponse.message || '채팅방 상태 확인 실패');
-                }
-            } catch (error: any) {
-                console.error('Error checking chat room status:', error);
-                setMatchError('채팅방 상태 확인 중 오류 발생');
-            } finally {
-                setIsLoadingRoomStatus(false);
-            }
+            // 채팅방 상태 확인 없이 바로 이동
+            console.log('[MainPage] Directly navigating to chat room:', matchedRoomId);
+            onNavigateToChat(matchedRoomId);
             return;
         }
 
@@ -386,6 +374,35 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         fetchProfileData();
     }, []);
 
+    // Auto search가 활성화되면 자동으로 매칭 대기열에 추가
+    useEffect(() => {
+        // 이미 매칭 중이거나 매칭된 상태면 무시
+        if (isMatching || matchedRoomId) {
+            return;
+        }
+
+        // 소켓 연결이 안 되어 있으면 무시
+        if (!matchSocket?.connected) {
+            console.log('[MainPage] Auto search: 소켓 연결이 없어서 자동 매칭을 시작할 수 없습니다.');
+            return;
+        }
+        
+        // 크레딧이 부족하면 무시
+        if (contextCredit < REQUIRED_MATCHING_CREDIT) {
+            console.log('[MainPage] Auto search: 크레딧이 부족하여 자동 매칭을 시작할 수 없습니다.');
+            setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
+            return;
+        }
+        
+        // Auto search가 활성화되고 남성 사용자일 때 자동으로 매칭 시작
+        if (isAutoSearchEnabled && profile?.gender === 'male' && !isLoadingProfile) {
+            console.log('[MainPage] Auto search: 자동으로 매칭을 시작합니다.');
+            setIsMatching(true);
+            setShowRippleAnimation(true);
+            matchSocket.emit('start_match');
+        }
+    }, [isAutoSearchEnabled, isMatching, matchedRoomId, matchSocket?.connected, contextCredit, profile?.gender, isLoadingProfile]);
+
     return (
         <div className={styles.pageContainer}>
             {/* Header is now rendered in App.tsx */}
@@ -398,6 +415,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                     onNavigateToMyProfile={onNavigateToMyProfile}
                     onNavigateToSettings={onNavigateToSettings}
                     currentView={currentView}
+                    matchedRoomId={matchedRoomId}
+                    onNavigateToChat={onNavigateToChat}
                 />
                 <main className={styles.mainContent}>
                     <div className={styles.mainHeader}>

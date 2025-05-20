@@ -9,13 +9,29 @@ interface SidebarProps {
     onNavigateToMyProfile: () => void;
     onNavigateToSettings: () => void; // Add prop for Settings navigation
     currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
+    matchedRoomId: string | null; // Add matched room ID
+    onNavigateToChat: (roomId: string) => void; // Add callback to navigate to chat
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onLogout, onNavigateToDashboard, onNavigateToMyProfile, onNavigateToSettings, currentView }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+    onLogout, 
+    onNavigateToDashboard, 
+    onNavigateToMyProfile, 
+    onNavigateToSettings, 
+    currentView,
+    matchedRoomId,
+    onNavigateToChat
+}) => {
     const handleItemClick = (item: string) => {
         switch (item) {
             case 'Match':
-                onNavigateToDashboard();
+                // If already matched, go to chat room directly
+                if (matchedRoomId) {
+                    onNavigateToChat(matchedRoomId);
+                } else {
+                    // Otherwise go to match dashboard
+                    onNavigateToDashboard();
+                }
                 break;
             case 'Profile':
                 onNavigateToMyProfile();

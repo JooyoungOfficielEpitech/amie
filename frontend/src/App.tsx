@@ -30,6 +30,8 @@ function App() {
   const [currentChatRoomId, setCurrentChatRoomId] = useState<string | null>(null); // State for current room ID
   const [userCredit, setUserCredit] = useState<number | null>(null); // Add state for user credit
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
+  // Auto search 기능을 위한 상태 추가
+  const [isAutoSearchEnabled, setIsAutoSearchEnabled] = useState<boolean>(false);
 
   // Fetch user profile function (ensure setCurrentUserProfile is called correctly)
   const fetchUserProfile = useCallback(async () => {
@@ -264,6 +266,7 @@ function App() {
                           onNavigateToSettings={navigateToSettings}
                           currentView={activeView}
                           onCreditUpdate={fetchUserProfile} // Pass the profile fetch function
+                          isAutoSearchEnabled={isAutoSearchEnabled}
                       />;
           case 'chat':
               if (!currentChatRoomId) {
@@ -287,6 +290,7 @@ function App() {
                           roomId={currentChatRoomId} 
                           userId={userId} // Now guaranteed to be a string
                           onCreditUpdate={fetchUserProfile} // 크레딧 업데이트 함수 추가
+                          isAutoSearchEnabled={isAutoSearchEnabled} // Auto search 상태 전달
                       />;
           case 'my-profile':
               // No need to re-check userId here
@@ -296,6 +300,8 @@ function App() {
                           onNavigateToMyProfile={navigateToMyProfile}
                           onNavigateToSettings={navigateToSettings}
                           currentView={activeView}
+                          currentChatRoomId={currentChatRoomId}
+                          onNavigateToChat={navigateToChat}
                       />; 
           case 'settings':
                // No need to re-check userId here
@@ -305,6 +311,8 @@ function App() {
                           onNavigateToMyProfile={navigateToMyProfile}
                           onNavigateToSettings={navigateToSettings}
                           currentView={activeView}
+                          currentChatRoomId={currentChatRoomId}
+                          onNavigateToChat={navigateToChat}
                       />;
           default:
               // Fallback to dashboard if view is unknown, assuming profile loaded if logged in
@@ -316,6 +324,7 @@ function App() {
                           onNavigateToSettings={navigateToSettings}
                           currentView={activeView}
                           onCreditUpdate={fetchUserProfile} 
+                          isAutoSearchEnabled={isAutoSearchEnabled}
                        />;
       }
   };
@@ -366,6 +375,14 @@ function App() {
       }
   }, [isLoggedIn]); // Run whenever isLoggedIn changes
 
+  // 매칭된 채팅방이 있으면 자동으로 채팅방으로 이동
+  useEffect(() => {
+    if (isLoggedIn && currentChatRoomId && activeView === 'dashboard') {
+      console.log('[App] Auto navigating to chat room:', currentChatRoomId);
+      setActiveView('chat');
+    }
+  }, [isLoggedIn, currentChatRoomId, activeView]);
+
   return (
     <div className="app">
       <AuthProvider>
@@ -388,7 +405,13 @@ function App() {
                   overflow: 'hidden' // Prevent this container from scrolling
                 }}>
                   {/* Pass userCredit and fetchUserProfile to Header */}
-                  <Header creditBalance={userCredit} onRefetchCredit={fetchUserProfile} /> 
+                  <Header 
+                    creditBalance={userCredit} 
+                    onRefetchCredit={fetchUserProfile}
+                    userGender={currentUserProfile?.gender} // 사용자 성별 정보 전달
+                    isAutoSearchEnabled={isAutoSearchEnabled}
+                    onAutoSearchChange={setIsAutoSearchEnabled}
+                  /> 
                   {/* Container for the actual page content (MainPage, ChatPage, etc.) */}
                   <div style={{
                     flexGrow: 1, // Take remaining vertical space
