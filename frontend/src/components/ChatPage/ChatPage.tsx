@@ -66,12 +66,27 @@ const ChatPage: React.FC<ChatPageProps> = ({
     const [isPartnerLeft, setIsPartnerLeft] = useState(false); // <-- 상대방 나감 상태 추가
     const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true); // <-- Add loading state
 
-    // TODO: Implement logic to get roomId if not passed via props (e.g., from URL)
+    // 채팅방 ID가 없는 경우 처리
     useEffect(() => {
         if (!initialRoomId) {
-
+            console.error('[ChatPage] No room ID provided in props');
+            
+            // localStorage에서 채팅방 ID 확인
+            const savedRoomId = localStorage.getItem('currentChatRoomId');
+            if (savedRoomId) {
+                console.log('[ChatPage] Using roomId from localStorage:', savedRoomId);
+                // 현재는 상태를 직접 변경할 수 없으므로 dashboard로 이동
+                // 이후 App.tsx의 효과에서 chat으로 다시 이동될 것임
+                onNavigateToDashboard();
+            } else {
+                console.error('[ChatPage] No room ID available, navigating to dashboard');
+                onNavigateToDashboard();
+            }
+        } else {
+            // 채팅방 ID가 있는 경우에는 localStorage에 저장
+            localStorage.setItem('currentChatRoomId', initialRoomId);
         }
-    }, [initialRoomId]);
+    }, [initialRoomId, onNavigateToDashboard]);
 
     // --- Fetch initial chat history --- 
     useEffect(() => {
@@ -263,13 +278,15 @@ const ChatPage: React.FC<ChatPageProps> = ({
     useEffect(() => {
         // 상대방이 나가고, Auto search가 활성화되었을 때 자동으로 대시보드로 이동
         if (isPartnerLeft && isAutoSearchEnabled) {
-            console.log('[ChatPage] 상대방이 나갔고 Auto search가 활성화되어 있어 대시보드로 이동합니다.');
+            console.log('[ChatPage] 상대방이 나갔고 Auto search가 활성화되어 있어 대시보드로 이동합니다. (Auto search 상태:', isAutoSearchEnabled, ')');
             // 약간의 지연 후에 대시보드로 이동 (사용자에게 상대방이 나갔다는 메시지를 보여줄 시간을 주기 위해)
             const timer = setTimeout(() => {
                 onNavigateToDashboard();
             }, 2000);
             
             return () => clearTimeout(timer);
+        } else if (isPartnerLeft) {
+            console.log('[ChatPage] 상대방이 나갔지만 Auto search가 비활성화되어 있어 자동 이동하지 않습니다. (Auto search 상태:', isAutoSearchEnabled, ')');
         }
     }, [isPartnerLeft, isAutoSearchEnabled, onNavigateToDashboard]);
 

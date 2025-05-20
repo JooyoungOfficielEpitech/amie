@@ -29,6 +29,8 @@ interface MaleMatchingBoxProps {
   setIsMatching: (isMatching: boolean) => void;
   onMatchButtonClick: () => void;
   onCreditUpdate: () => Promise<void>;
+  isAutoSearchEnabled?: boolean; // App.tsx에서 관리하는 상태
+  onAutoSearchChange?: (enabled: boolean) => void; // App.tsx 상태 변경 콜백
 }
 
 const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
@@ -42,9 +44,11 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
   setMatchError,
   setIsMatching,
   onMatchButtonClick,
-  onCreditUpdate
+  onCreditUpdate,
+  isAutoSearchEnabled: externalAutoSearchEnabled = false, // 외부에서 전달받은 값
+  onAutoSearchChange // 외부 상태 업데이트 콜백
 }) => {
-  const [isAutoMatchEnabled, setIsAutoMatchEnabled] = useState<boolean>(false);
+  const [isAutoMatchEnabled, setIsAutoMatchEnabled] = useState<boolean>(externalAutoSearchEnabled);
   // 상태 변경 디바운싱을 위한 레퍼런스
   const lastStatusCheckRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
@@ -238,6 +242,12 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
           setIsAutoMatchEnabled(result.isMatching);
           localStorage.setItem('isAutoMatchEnabled', result.isMatching ? 'true' : 'false');
           
+          // App.tsx의 상태도 업데이트 (부모 컴포넌트에 변경 알림)
+          if (onAutoSearchChange) {
+            console.log(`[MaleMatchingBox] Updating parent component auto search state: ${result.isMatching}`);
+            onAutoSearchChange(result.isMatching);
+          }
+          
           // 토글 성공 후 쿨다운 설정 (2초)
           setIsToggleCooldown(true);
           setTimeout(() => {
@@ -304,7 +314,7 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         matchSocket.off('toggle_match_result');
       }
     };
-  }, [matchSocket?.connected, setMatchError, setIsMatching, refreshCredit, onCreditUpdate, isAutoMatchEnabled]); // 의존성 배열에 isAutoMatchEnabled 추가
+  }, [matchSocket?.connected, setMatchError, setIsMatching, refreshCredit, onCreditUpdate, isAutoMatchEnabled, onAutoSearchChange]);
 
   // 매칭 상태 확인 후 안전하게 매칭 시작하는 Promise 기반 함수 - useCallback으로 메모이제이션
   const checkMatchStatusAndStart = useCallback((): Promise<void> => {
@@ -408,30 +418,12 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         return;
       }
       
-      // 로컬 스토리지에서 자동 매칭 설정 가져오기
-      const shouldAutoMatch = localStorage.getItem('isAutoMatchEnabled') === 'true';
-      
-      // 자동 매칭 상태 업데이트
-      if (shouldAutoMatch !== isAutoMatchEnabled) {
-        setIsAutoMatchEnabled(shouldAutoMatch);
-      }
-      
-      // 크레딧 부족한 경우 자동 매칭 비활성화
-      if (shouldAutoMatch && !hasSufficientCredit) {
-        setIsAutoMatchEnabled(false);
-        localStorage.setItem('isAutoMatchEnabled', 'false');
-        setMatchError(CREDIT_INSUFFICIENT);
-        
-        // 현재 매칭 중이면 취소
-        if (isMatching) {
-          matchSocket.emit('cancel_match');
-        }
-        
-        return;
-      }
+      // 자체적인 로컬 스토리지 체크 대신 컴포넌트 상태 사용
+      // 이 부분을 수정하여 App 컴포넌트에서 관리하는 isAutoMatchEnabled 사용
+      console.log('[MaleMatchingBox] 자동 매칭 확인 - isAutoMatchEnabled 상태:', isAutoMatchEnabled);
       
       // 채팅방이 없고, 매칭 중이 아니고, 자동 매칭이 활성화되어 있으면 매칭 시작
-      if (shouldAutoMatch && hasSufficientCredit && !isMatching && !matchedRoomId) {
+      if (isAutoMatchEnabled && hasSufficientCredit && !isMatching && !matchedRoomId) {
         console.log('[MaleMatchingBox] Auto matching condition met, checking server state');
         
         // 매칭 시도 타임스탬프 기록
@@ -465,7 +457,7 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
     profile?.isWaitingForMatch, 
     isMatching, 
     matchedRoomId, 
-    isAutoMatchEnabled, 
+    isAutoMatchEnabled, // 컴포넌트 상태 사용 
     hasSufficientCredit, 
     checkMatchStatusAndStart, 
     setMatchError,
@@ -511,32 +503,34 @@ const MaleMatchingBox: React.FC<MaleMatchingBoxProps> = React.memo(({
         if (matchSocket?.connected) {
           // 토글 이벤트 전송 (새로운 방식)
           matchSocket.emit('toggle_match', {
-            isEnabled: newState,
-            gender: profile?.gender || 'male'
+            enable: newState
           });
           
-          // 임시로 UI에만 반영 (로컬 스토리지 업데이트는 서버 응답 후)
+          // 로컬 스토리지 업데이트 - App.tsx의 isAutoSearchEnabled 상태와 동기화 하기 위함
+          localStorage.setItem('isAutoMatchEnabled', newState ? 'true' : 'false');
+          
+          // 내부 상태 업데이트 (서버 응답 이전에 UI 먼저 업데이트)
           setIsAutoMatchEnabled(newState);
           
-          // 서버 응답이 없는 경우를 대비해 짧은 타임아웃 후 상태 확인
-          setTimeout(() => {
-            if (isTogglingInProgress) {
-              console.log('[MaleMatchingBox] Toggle response timeout, checking server status');
-              setIsTogglingInProgress(false);
-              matchSocket.emit('check_match_status');
-            }
-          }, 3000); // 타임아웃 시간 증가
-        } else {
-          // 소켓 연결이 끊어진 경우
-          setIsTogglingInProgress(false);
-          setMatchError('서버에 연결되어 있지 않습니다');
+          // App.tsx의 상태도 업데이트 (부모 컴포넌트에 변경 알림)
+          if (onAutoSearchChange) {
+            console.log(`[MaleMatchingBox] Updating parent component auto search state: ${newState}`);
+            onAutoSearchChange(newState);
+          }
         }
-      }, 500); // 서버 상태 확인 후 토글 요청 지연
+      }, 500);
     } else {
-      console.error('[MaleMatchingBox] Cannot toggle match: socket not connected');
-      setMatchError('서버에 연결되어 있지 않습니다');
+      // 소켓 연결이 없어도 로컬 상태는 업데이트
+      setIsAutoMatchEnabled(newState);
+      localStorage.setItem('isAutoMatchEnabled', newState ? 'true' : 'false');
+      
+      // App.tsx의 상태도 업데이트
+      if (onAutoSearchChange) {
+        console.log(`[MaleMatchingBox] Updating parent component auto search state (no socket): ${newState}`);
+        onAutoSearchChange(newState);
+      }
     }
-  }, [isAutoMatchEnabled, hasSufficientCredit, matchSocket?.connected, profile?.gender, setMatchError, isTogglingInProgress, isToggleCooldown]); // 의존성 배열에 isToggleCooldown 추가
+  }, [isTogglingInProgress, isToggleCooldown, isAutoMatchEnabled, hasSufficientCredit, matchSocket?.connected, setMatchError, onAutoSearchChange]);
 
   // 자동 매칭 스위치 비활성화 조건 - useMemo로 메모이제이션
   const isToggleDisabled = useMemo(() => (

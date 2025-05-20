@@ -123,11 +123,15 @@ const Header: React.FC<HeaderProps> = ({
         }
         
         const newValue = !isToggleOn;
+        console.log('[Header] Auto search 상태 변경:', isToggleOn, '->', newValue);
         setIsToggleOn(newValue);
         
         // 부모 컴포넌트에 변경 알림
         if (onAutoSearchChange) {
+            console.log('[Header] 부모 컴포넌트에 Auto search 상태 변경 알림:', newValue);
             onAutoSearchChange(newValue);
+        } else {
+            console.warn('[Header] onAutoSearchChange 함수가 없어 부모 컴포넌트에 알릴 수 없습니다.');
         }
     };
 

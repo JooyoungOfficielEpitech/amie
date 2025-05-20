@@ -33,6 +33,11 @@ function App() {
   // Auto search 기능을 위한 상태 추가
   const [isAutoSearchEnabled, setIsAutoSearchEnabled] = useState<boolean>(false);
 
+  // isAutoSearchEnabled 변경될 때마다 로그 출력
+  useEffect(() => {
+    console.log('[App] isAutoSearchEnabled 상태 변경:', isAutoSearchEnabled);
+  }, [isAutoSearchEnabled]);
+
   // Fetch user profile function (ensure setCurrentUserProfile is called correctly)
   const fetchUserProfile = useCallback(async () => {
       console.log('[App fetchUserProfile] Fetching user profile...'); 
@@ -204,6 +209,7 @@ function App() {
   const handleLogout = () => {
       console.log("Logout triggered!"); 
       localStorage.removeItem('accessToken'); // Ensure token is removed on logout
+      localStorage.removeItem('currentChatRoomId'); // 로그아웃 시 채팅방 ID 제거
       setIsLoggedIn(false);
       setShowSignupFlow(false); 
       setCurrentChatRoomId(null); 
@@ -215,6 +221,8 @@ function App() {
   const navigateToChat = (roomId: string) => { 
       if (isLoggedIn) {
           console.log(`Navigating to chat room: ${roomId}`);
+          // 채팅방 ID를 localStorage에 저장
+          localStorage.setItem('currentChatRoomId', roomId);
           setCurrentChatRoomId(roomId); 
           setActiveView('chat');
       }
@@ -222,6 +230,8 @@ function App() {
 
   const navigateToDashboard = () => {
       if (isLoggedIn) {
+          // 메인 페이지로 이동할 때 localStorage에서 채팅방 ID 제거
+          localStorage.removeItem('currentChatRoomId');
           setCurrentChatRoomId(null); 
           setActiveView('dashboard');
       }
@@ -267,6 +277,7 @@ function App() {
                           currentView={activeView}
                           onCreditUpdate={fetchUserProfile} // Pass the profile fetch function
                           isAutoSearchEnabled={isAutoSearchEnabled}
+                          onAutoSearchChange={setIsAutoSearchEnabled}
                       />;
           case 'chat':
               if (!currentChatRoomId) {
@@ -325,6 +336,7 @@ function App() {
                           currentView={activeView}
                           onCreditUpdate={fetchUserProfile} 
                           isAutoSearchEnabled={isAutoSearchEnabled}
+                          onAutoSearchChange={setIsAutoSearchEnabled}
                        />;
       }
   };
@@ -361,9 +373,19 @@ function App() {
     if (token) {
       console.log('[App] Token found, setting logged in state to true.');
       setIsLoggedIn(true);
+      
+      // 저장된 채팅방 ID가 있는지 확인
+      const savedRoomId = localStorage.getItem('currentChatRoomId');
+      if (savedRoomId) {
+        console.log('[App] Saved chat room ID found:', savedRoomId);
+        setCurrentChatRoomId(savedRoomId);
+        setActiveView('chat');
+      }
     } else {
       setIsLoggedIn(false);
       setUserCredit(null); // Ensure credit is null if not logged in initially
+      // 로그아웃 시 채팅방 ID 정보 제거
+      localStorage.removeItem('currentChatRoomId');
     }
   }, []);
 

@@ -33,9 +33,10 @@ interface MainPageProps {
     currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
     onCreditUpdate: () => Promise<void>; // Add the missing prop type
     isAutoSearchEnabled?: boolean; // Auto search 상태 추가
+    onAutoSearchChange?: (enabled: boolean) => void; // Auto search 상태 변경 콜백 추가
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate, isAutoSearchEnabled = false }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate, isAutoSearchEnabled = false, onAutoSearchChange }) => {
     console.log('--- MainPage Component Render Start ---', currentView);
     
     // 상태들
@@ -49,6 +50,23 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const [isLoadingRoomStatus, setIsLoadingRoomStatus] = useState<boolean>(false);
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
+    
+    // Auto search 상태 변경에 대한 로깅
+    console.log('[MainPage] isAutoSearchEnabled 상태:', isAutoSearchEnabled);
+    
+    // Auto search 상태 변경을 App.tsx로 전달하기 위한 콜백
+    const handleAutoSearchChange = useCallback((enabled: boolean) => {
+        // MainPage에서는 상태 변경을 App.tsx로 전달
+        console.log('[MainPage] Auto search 상태 변경 요청:', enabled);
+        
+        // 부모 컴포넌트로 상태 변경 전달
+        if (onAutoSearchChange) {
+            console.log('[MainPage] 부모 컴포넌트의 onAutoSearchChange 호출');
+            onAutoSearchChange(enabled);
+        } else {
+            console.log('[MainPage] 부모 컴포넌트가 onAutoSearchChange를 제공하지 않았습니다');
+        }
+    }, [onAutoSearchChange]);
     
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
@@ -143,8 +161,9 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                 console.error('[MainPage] Error fetching credit after match:', err);
             });
             
-            // 매칭 성공 즉시 채팅방으로 이동
+            // 매칭 성공 즉시 채팅방으로 이동 - localStorage에도 저장
             console.log('[MainPage] Auto navigating to chat room after match success:', data.roomId);
+            localStorage.setItem('currentChatRoomId', data.roomId);
             onNavigateToChat(data.roomId);
         };
 
@@ -376,8 +395,23 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
 
     // Auto search가 활성화되면 자동으로 매칭 대기열에 추가
     useEffect(() => {
-        // 이미 매칭 중이거나 매칭된 상태면 무시
-        if (isMatching || matchedRoomId) {
+        // 디버깅 - Auto search 상태와 프로필 정보 로깅
+        console.log('[MainPage] Auto search 체크 - 상태:', isAutoSearchEnabled, 
+                    ', 성별:', profile?.gender, 
+                    ', 매칭 중:', isMatching, 
+                    ', 매칭된 방:', matchedRoomId);
+                    
+        // 이미 매칭 중이면 무시
+        if (isMatching) {
+            console.log('[MainPage] Auto search: 이미 매칭 중이어서 무시합니다.');
+            return;
+        }
+        
+        // 이미 매칭된 채팅방이 있으면 채팅방으로 자동 이동
+        if (matchedRoomId) {
+            console.log('[MainPage] 매칭된 채팅방이 있어 자동으로 이동합니다:', matchedRoomId);
+            localStorage.setItem('currentChatRoomId', matchedRoomId);
+            onNavigateToChat(matchedRoomId);
             return;
         }
 
@@ -400,8 +434,10 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             setIsMatching(true);
             setShowRippleAnimation(true);
             matchSocket.emit('start_match');
+        } else {
+            console.log('[MainPage] Auto search: 조건이 충족되지 않아 자동 매칭을 시작하지 않습니다.');
         }
-    }, [isAutoSearchEnabled, isMatching, matchedRoomId, matchSocket?.connected, contextCredit, profile?.gender, isLoadingProfile]);
+    }, [isAutoSearchEnabled, isMatching, matchedRoomId, matchSocket?.connected, contextCredit, profile?.gender, isLoadingProfile, onNavigateToChat]);
 
     return (
         <div className={styles.pageContainer}>
@@ -460,6 +496,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                                     setIsMatching={setIsMatching}
                                     onMatchButtonClick={handleMatchButtonClick}
                                     onCreditUpdate={onCreditUpdate}
+                                    isAutoSearchEnabled={isAutoSearchEnabled}
+                                    onAutoSearchChange={handleAutoSearchChange}
                                 />
                             ) : (
                                 <FemaleMatchingBox

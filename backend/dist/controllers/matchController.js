@@ -47,25 +47,6 @@ const requestMatch = async (req, res) => {
         const user = req.user;
         // 매칭에 필요한 크레딧 (10개)
         const requiredCredit = 10;
-        // 크레딧 확인
-        if (user.credit < requiredCredit) {
-            return res.status(400).json({
-                success: false,
-                error: '크레딧이 부족합니다.'
-            });
-        }
-        // 이미 대기열에 있는지 확인
-        const existingQueue = await MatchQueue_1.default.findOne({
-            userId: user._id,
-            isWaiting: true
-        });
-        if (existingQueue) {
-            return res.status(400).json({
-                success: false,
-                error: '이미 매칭 대기열에 등록되어 있습니다.'
-            });
-        }
-        // 크레딧 차감 및 로그 생성
         const creditLog = new CreditLog_1.default({
             userId: user._id,
             action: CreditLog_1.CreditAction.MATCH,
