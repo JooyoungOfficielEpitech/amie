@@ -74,8 +74,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
 
         } catch (err: any) {
             console.error('로그인 오류:', err);
-            const errorMessage = err.response?.data?.message || err.message || '로그인 중 오류가 발생했습니다.';
-            setError(errorMessage);
+            setError("로그인 실패. 이메일 또는 비밀번호를 확인하세요.");
         } finally {
             setIsLoading(false);
         }
