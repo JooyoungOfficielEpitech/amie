@@ -1,0 +1,24 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Amié 프로젝트 개요
+
+이 프로젝트는 데이팅/매칭 애플리케이션으로, React 기반의 프론트엔드와 Express/Node.js 기반의 백엔드로 구성되어 있습니다.
+
+## 프로젝트 구조
+
+- [frontend/](mdc:frontend) - React 프론트엔드 애플리케이션
+- [backend/](mdc:backend) - Express 백엔드 API 서버
+- [docker-compose.yml](mdc:docker-compose.yml) - 개발 환경 Docker 구성
+- [docker-compose.prod.yml](mdc:docker-compose.prod.yml) - 프로덕션 환경 Docker 구성
+- [nginx/](mdc:nginx) - Nginx 웹 서버 설정
+
+## 핵심 기능
+
+- 사용자 인증 및 프로필 관리
+- 매칭 시스템
+- 실시간 채팅
+- 크레딧 관리 시스템
+- 자동 검색 및 매칭 기능

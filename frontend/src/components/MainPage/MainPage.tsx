@@ -10,10 +10,7 @@ import { useSocket } from '../../contexts/SocketContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
 import ProfileSlideshow from './ProfileSlideshow';
-
-// 성별별 매칭 컴포넌트 가져오기
-import MaleMatchingBox from './MaleMatchingBox';
-import FemaleMatchingBox from './FemaleMatchingBox';
+import MatchingBox from './MatchingBox';
 
 // 매칭에 필요한 크레딧
 const REQUIRED_MATCHING_CREDIT = 10;
@@ -32,11 +29,10 @@ interface MainPageProps {
     onNavigateToSettings: () => void;
     currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
     onCreditUpdate: () => Promise<void>; // Add the missing prop type
-    isAutoSearchEnabled?: boolean; // Auto search 상태 추가
-    onAutoSearchChange?: (enabled: boolean) => void; // Auto search 상태 변경 콜백 추가
+    shouldStartMatching?: boolean; // App.tsx에서 전달받는 자동 매칭 시작 prop
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate, isAutoSearchEnabled = false, onAutoSearchChange }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate, shouldStartMatching = false }) => {
     console.log('--- MainPage Component Render Start ---', currentView);
     
     // 상태들
@@ -49,23 +45,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null);
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
-    
-    // Auto search 상태 변경에 대한 로깅
-    console.log('[MainPage] isAutoSearchEnabled 상태:', isAutoSearchEnabled);
-    
-    // Auto search 상태 변경을 App.tsx로 전달하기 위한 콜백
-    const handleAutoSearchChange = useCallback((enabled: boolean) => {
-        // MainPage에서는 상태 변경을 App.tsx로 전달
-        console.log('[MainPage] Auto search 상태 변경 요청:', enabled);
-        
-        // 부모 컴포넌트로 상태 변경 전달
-        if (onAutoSearchChange) {
-            console.log('[MainPage] 부모 컴포넌트의 onAutoSearchChange 호출');
-            onAutoSearchChange(enabled);
-        } else {
-            console.log('[MainPage] 부모 컴포넌트가 onAutoSearchChange를 제공하지 않았습니다');
-        }
-    }, [onAutoSearchChange]);
     
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
@@ -168,17 +147,21 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
 
         const handleMatchError = (errorData: { message: string }) => {
             console.error('Match Error from server:', errorData);
-            setError(`매칭 오류: ${errorData.message}`);
-            setIsLoadingMatchAction(false);
-            // 매칭 오류 시 애니메이션 비활성화
-            setShowRippleAnimation(false);
             
-            // '이미 매칭 대기 중입니다' 오류인 경우 isMatching 상태를 true로 설정
+            // '이미 매칭 대기 중입니다' 오류인 경우 isMatching 상태를 true로 설정하고 오류 메시지 표시 안 함
             if (errorData.message.includes('이미') && errorData.message.includes('대기')) {
                 console.log('[MainPage] Already in matching queue, updating state');
                 setIsMatching(true);
                 setMatchError(null); // 오류 메시지를 지워 사용자 혼란 방지
+                setShowRippleAnimation(true); // 애니메이션 활성화
+                return; // 다른 오류 처리 로직 실행 안 함
             }
+            
+            // 다른 종류의 오류인 경우 일반 오류 처리
+            setError(`매칭 오류: ${errorData.message}`);
+            setIsLoadingMatchAction(false);
+            // 매칭 오류 시 애니메이션 비활성화
+            setShowRippleAnimation(false);
         };
 
         const handleMatchCancelled = () => {
@@ -200,10 +183,18 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
 
         const handleCurrentMatchStatus = (data: { isMatching: boolean }) => {
             console.log('[MainPage] Received current_match_status:', data);
-            setIsMatching(data.isMatching);
             
-            // 서버에서 매칭 상태를 받아왔을 때 애니메이션 상태도 업데이트
-            setShowRippleAnimation(data.isMatching);
+            // 서버에서 받은 매칭 상태로 업데이트
+            if (data.isMatching !== isMatching) {
+                console.log('[MainPage] 서버 매칭 상태와 클라이언트 상태가 다릅니다. 서버 상태로 업데이트합니다.');
+                console.log('[MainPage] 서버:', data.isMatching, '클라이언트:', isMatching);
+                setIsMatching(data.isMatching);
+                
+                // 서버에서 매칭 상태를 받아왔을 때 애니메이션 상태도 업데이트
+                setShowRippleAnimation(data.isMatching);
+            } else {
+                console.log('[MainPage] 서버와 클라이언트의 매칭 상태가 일치합니다:', data.isMatching);
+            }
         };
 
         // 이벤트 리스너 등록
@@ -282,15 +273,67 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         }
     }, [matchSocket?.connected, isMatching, matchedRoomId, onNavigateToChat, contextCredit]);
 
+    // 자동 매칭 시작 체크 - localStorage와 props를 통합하여 중복 요청 방지
+    useEffect(() => {
+        // 프로필이 로딩되었고 매칭된 채팅방이 없는 경우에만 실행
+        if (profile && !matchedRoomId && !isLoadingProfile && matchSocket?.connected) {
+            // localStorage에서 자동 매칭 신호 확인
+            const autoStartMatching = localStorage.getItem('autoStartMatching');
+            
+            // props나 localStorage 중 하나라도 자동 매칭 신호가 있으면 매칭 상태 확인
+            if ((shouldStartMatching || autoStartMatching === 'true') && profile.gender === 'male') {
+                console.log('[MainPage] 자동 매칭 신호 감지: props=', shouldStartMatching, ', localStorage=', autoStartMatching);
+                
+                // localStorage 신호가 있으면 제거
+                if (autoStartMatching === 'true') {
+                    console.log('[MainPage] localStorage에서 자동 매칭 시작 신호를 제거합니다.');
+                    localStorage.removeItem('autoStartMatching');
+                }
+                
+                // 이미 매칭 중인 경우 추가 요청을 보내지 않음
+                if (isMatching) {
+                    console.log('[MainPage] 이미 매칭 중입니다. 추가 요청을 보내지 않습니다.');
+                    return;
+                }
+                
+                // 매칭 시작 전에 현재 매칭 상태 확인
+                console.log('[MainPage] 매칭 시작 전 현재 상태 확인 요청');
+                matchSocket.emit('check_match_status');
+                
+                // 약간의 지연 후 매칭 상태 재확인
+                setTimeout(() => {
+                    // 지연 후에도 매칭 중이 아니면 매칭 시작
+                    if (!isMatching) {
+                        console.log('[MainPage] 상태 확인 후 매칭을 시작합니다.');
+                        
+                        // 크레딧 확인
+                        if (contextCredit < REQUIRED_MATCHING_CREDIT) {
+                            console.log('[MainPage] Auto matching: 크레딧이 부족하여 자동 매칭을 시작할 수 없습니다.');
+                            setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
+                            return;
+                        }
+                        
+                        // 매칭 시작
+                        setIsMatching(true);
+                        setShowRippleAnimation(true);
+                        matchSocket.emit('start_match');
+                    } else {
+                        console.log('[MainPage] 상태 확인 결과 이미 매칭 중입니다.');
+                    }
+                }, 500); // 500ms 지연
+            }
+        }
+    }, [profile, matchedRoomId, isLoadingProfile, matchSocket, contextCredit, shouldStartMatching, isMatching]);
+
     // Original dashboard navigation handler (if needed elsewhere, otherwise remove)
     const handleNavigateToDashboard = () => {
         // This function is now potentially unused if the main button is for matching
         console.log("Navigate to Dashboard requested (original handler).");
-         if (currentView !== 'dashboard') {
-             // Assuming there's a way to navigate back to the dashboard view
-             // This might involve calling a prop passed from App.tsx
-             console.log("Need a way to navigate back to dashboard view state");
-         }
+        if (currentView !== 'dashboard') {
+            // Assuming there's a way to navigate back to the dashboard view
+            // This might involve calling a prop passed from App.tsx
+            console.log("Need a way to navigate back to dashboard view state");
+        }
     };
 
     // 버튼 상태 관련 memoized 값들
@@ -390,51 +433,14 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         fetchProfileData();
     }, []);
 
-    // Auto search가 활성화되면 자동으로 매칭 대기열에 추가
+    // 이미 매칭된 채팅방이 있으면 자동으로 채팅방으로 이동
     useEffect(() => {
-        // 디버깅 - Auto search 상태와 프로필 정보 로깅
-        console.log('[MainPage] Auto search 체크 - 상태:', isAutoSearchEnabled, 
-                    ', 성별:', profile?.gender, 
-                    ', 매칭 중:', isMatching, 
-                    ', 매칭된 방:', matchedRoomId);
-                    
-        // 이미 매칭 중이면 무시
-        if (isMatching) {
-            console.log('[MainPage] Auto search: 이미 매칭 중이어서 무시합니다.');
-            return;
-        }
-        
-        // 이미 매칭된 채팅방이 있으면 채팅방으로 자동 이동
         if (matchedRoomId) {
             console.log('[MainPage] 매칭된 채팅방이 있어 자동으로 이동합니다:', matchedRoomId);
             localStorage.setItem('currentChatRoomId', matchedRoomId);
             onNavigateToChat(matchedRoomId);
-            return;
         }
-
-        // 소켓 연결이 안 되어 있으면 무시
-        if (!matchSocket?.connected) {
-            console.log('[MainPage] Auto search: 소켓 연결이 없어서 자동 매칭을 시작할 수 없습니다.');
-            return;
-        }
-        
-        // 크레딧이 부족하면 무시
-        if (contextCredit < REQUIRED_MATCHING_CREDIT) {
-            console.log('[MainPage] Auto search: 크레딧이 부족하여 자동 매칭을 시작할 수 없습니다.');
-            setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
-            return;
-        }
-        
-        // Auto search가 활성화되고 남성 사용자일 때 자동으로 매칭 시작
-        if (isAutoSearchEnabled && profile?.gender === 'male' && !isLoadingProfile) {
-            console.log('[MainPage] Auto search: 자동으로 매칭을 시작합니다.');
-            setIsMatching(true);
-            setShowRippleAnimation(true);
-            matchSocket.emit('start_match');
-        } else {
-            console.log('[MainPage] Auto search: 조건이 충족되지 않아 자동 매칭을 시작하지 않습니다.');
-        }
-    }, [isAutoSearchEnabled, isMatching, matchedRoomId, matchSocket?.connected, contextCredit, profile?.gender, isLoadingProfile, onNavigateToChat]);
+    }, [matchedRoomId, onNavigateToChat]);
 
     return (
         <div className={styles.pageContainer}>
@@ -477,37 +483,18 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                     <div style={{ position: 'relative' }}>
                         <CentralRippleAnimation isVisible={showRippleAnimation} />
                     
-                        {/* 프로필 로딩 완료 시 성별에 따라 다른 매칭 박스 표시 */}
+                        {/* 프로필 로딩 완료 시 통합 매칭 박스 표시 */}
                         {!isLoadingProfile && profile && (
-                            profile.gender === 'male' ? (
-                                <MaleMatchingBox
-                                    profile={profile}
-                                    isMatching={isMatching}
-                                    isButtonDisabled={isButtonDisabled}
-                                    matchedRoomId={matchedRoomId}
-                                    buttonText={buttonText}
-                                    isLoadingRoomStatus={isLoadingMatchAction}
-                                    matchSocket={matchSocket}
-                                    matchError={matchError}
-                                    setMatchError={setMatchError}
-                                    setIsMatching={setIsMatching}
-                                    onMatchButtonClick={handleMatchButtonClick}
-                                    onCreditUpdate={onCreditUpdate}
-                                    isAutoSearchEnabled={isAutoSearchEnabled}
-                                    onAutoSearchChange={handleAutoSearchChange}
-                                />
-                            ) : (
-                                <FemaleMatchingBox
-                                    profile={profile}
-                                    isMatching={isMatching}
-                                    isButtonDisabled={isButtonDisabled}
-                                    matchedRoomId={matchedRoomId}
-                                    buttonText={buttonText}
-                                    isLoadingRoomStatus={isLoadingMatchAction}
-                                    matchError={matchError}
-                                    onMatchButtonClick={handleMatchButtonClick}
-                                />
-                            )
+                            <MatchingBox
+                                profile={profile}
+                                isMatching={isMatching}
+                                isButtonDisabled={isButtonDisabled}
+                                matchedRoomId={matchedRoomId}
+                                buttonText={buttonText}
+                                isLoadingRoomStatus={isLoadingMatchAction}
+                                matchError={matchError}
+                                onMatchButtonClick={handleMatchButtonClick}
+                            />
                         )}
                     </div>
                     

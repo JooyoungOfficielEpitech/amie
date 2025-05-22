@@ -1,0 +1,30 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 배포 구성
+
+## Docker 구성
+
+프로젝트는 Docker를 사용하여 컨테이너화되어 있습니다.
+
+- [docker-compose.yml](mdc:docker-compose.yml) - 개발 환경 Docker 구성
+- [docker-compose.prod.yml](mdc:docker-compose.prod.yml) - 프로덕션 환경 Docker 구성
+- [docker-compose.ssl.yml](mdc:docker-compose.ssl.yml) - SSL 적용 Docker 구성
+
+## 프론트엔드 배포
+
+- [frontend/Dockerfile](mdc:frontend/Dockerfile) - 개발용 프론트엔드 Docker 이미지
+- [frontend/Dockerfile.prod](mdc:frontend/Dockerfile.prod) - 프로덕션용 프론트엔드 Docker 이미지
+- [frontend/nginx.conf](mdc:frontend/nginx.conf) - 프론트엔드 Nginx 설정
+
+## 백엔드 배포
+
+- [backend/Dockerfile](mdc:backend/Dockerfile) - 개발용 백엔드 Docker 이미지
+- [backend/Dockerfile.prod](mdc:backend/Dockerfile.prod) - 프로덕션용 백엔드 Docker 이미지
+
+## Nginx 설정
+
+- [nginx/conf.d/app.conf](mdc:nginx/conf.d/app.conf) - 메인 Nginx 설정
+- [nginx/conf.d/default.conf](mdc:nginx/conf.d/default.conf) - 기본 Nginx 설정

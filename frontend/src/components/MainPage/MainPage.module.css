@@ -161,6 +161,68 @@
     text-align: center;
 }
 
+/* 자동 매칭 토글 스타일 */
+.autoMatchContainer {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.toggleLabel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.toggleLabel span {
+    font-size: 0.85em;
+    font-weight: 500;
+    color: #333;
+}
+
+.toggleSwitch {
+    position: relative;
+    width: 48px;
+    height: 24px;
+    border-radius: 12px;
+    background-color: #ccc;
+    transition: background-color 0.3s;
+    cursor: pointer;
+}
+
+.toggleActive {
+    background-color: #FE466C;
+}
+
+.toggleProcessing {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.toggleSlider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: white;
+    transition: transform 0.3s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggleActive .toggleSlider {
+    transform: translateX(24px);
+}
+
+.toggleDescription {
+    font-size: 0.75em;
+    color: #777;
+    margin: 5px 0 0 0;
+}
+
 /* 리로드 버튼 스타일 */
 .reloadButtonContainer {
   display: flex;
@@ -192,4 +254,23 @@
 
 .reloadButton:hover {
   background-color: #c0392b;
+}
+
+/* Auto search 버튼 스타일 */
+.autoSearchButton {
+    padding: 5px 10px;
+    margin-left: 10px;
+    border-radius: 15px;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #f1f1f1;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.autoSearchActive {
+    background-color: #4caf50;
+    color: white;
+    border: 1px solid #43a047;
 } 

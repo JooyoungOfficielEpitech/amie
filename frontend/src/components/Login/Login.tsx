@@ -48,6 +48,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
         setIsLoading(true);
         setError(null);
 
+        // 이전에 저장된 토큰이나 채팅방 ID만 제거하고 auto search 설정은 유지
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('currentChatRoomId');
+
         const credentials: LoginCredentials = { email, password };
 
         try {
@@ -102,6 +106,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
                 console.log('Backend socialLogin Response:', backendResponse);
 
                 if (backendResponse.success && backendResponse.token) {
+                    // 인증 관련 localStorage 항목 설정 - auto search 설정은 그대로 유지
                     localStorage.setItem('accessToken', backendResponse.token);
                     onLoginSuccess(backendResponse.token);
                 } else {
@@ -149,13 +154,24 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
     const handleGoogleLoginClick = () => {
         setError(null);
         setIsLoading(true); // Set loading true when button is clicked
-        // Make sure localStorage is clear before Google login to prevent token issues
-        localStorage.clear();
+        
+        // 전체 localStorage를 지우는 대신 필요한 항목만 제거
+        // 이전에 저장된 토큰이나 채팅방 ID만 제거하고 auto search 설정은 유지
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('currentChatRoomId');
+        
+        // 기존의 localStorage.clear() 대신 위의 코드로 대체
+        
         googleLogin(); // Initiate the Google login flow
     };
 
     const handleKakaoLogin = () => {
         console.log('Kakao Login button clicked - showing placeholder modal.');
+        
+        // 이전에 저장된 토큰이나 채팅방 ID만 제거하고 auto search 설정은 유지
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('currentChatRoomId');
+        
         setIsKakaoModalOpen(true); // Open the placeholder modal
     };
 

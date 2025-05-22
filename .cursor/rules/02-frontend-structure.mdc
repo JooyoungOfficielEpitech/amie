@@ -1,0 +1,37 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 프론트엔드 구조
+
+프론트엔드는 React, TypeScript, Vite를 사용하여 구축되었습니다.
+
+## 주요 파일 및 디렉토리
+
+- [frontend/src/App.tsx](mdc:frontend/src/App.tsx) - 메인 애플리케이션 컴포넌트
+- [frontend/src/main.tsx](mdc:frontend/src/main.tsx) - 애플리케이션 엔트리 포인트
+
+## 컴포넌트 구조
+
+- [frontend/src/components/](mdc:frontend/src/components) - 모든 UI 컴포넌트
+  - [frontend/src/components/Login/](mdc:frontend/src/components/Login) - 로그인 관련 컴포넌트
+  - [frontend/src/components/MainPage/](mdc:frontend/src/components/MainPage) - 메인 페이지 컴포넌트
+  - [frontend/src/components/ChatPage/](mdc:frontend/src/components/ChatPage) - 채팅 페이지 컴포넌트
+  - [frontend/src/components/MyProfile/](mdc:frontend/src/components/MyProfile) - 프로필 관련 컴포넌트
+  - [frontend/src/components/Settings/](mdc:frontend/src/components/Settings) - 설정 페이지 컴포넌트
+  - [frontend/src/components/SignupFlow/](mdc:frontend/src/components/SignupFlow) - 회원가입 관련 컴포넌트
+
+## 상태 관리
+
+- [frontend/src/contexts/](mdc:frontend/src/contexts) - React Context API를 사용한 상태 관리
+  - [frontend/src/contexts/AuthContext.tsx](mdc:frontend/src/contexts/AuthContext.tsx) - 인증 상태 관리
+  - [frontend/src/contexts/ChatContext.tsx](mdc:frontend/src/contexts/ChatContext.tsx) - 채팅 관련 상태 관리
+  - [frontend/src/contexts/CreditContext.tsx](mdc:frontend/src/contexts/CreditContext.tsx) - 크레딧 관련 상태 관리
+
+## API 통신
+
+- [frontend/src/api/](mdc:frontend/src/api) - 백엔드 API 통신 함수
+  - [frontend/src/api/authApi.ts](mdc:frontend/src/api/authApi.ts) - 인증 관련 API
+  - [frontend/src/api/chatApi.ts](mdc:frontend/src/api/chatApi.ts) - 채팅 관련 API
+  - [frontend/src/api/matchApi.ts](mdc:frontend/src/api/matchApi.ts) - 매칭 관련 API

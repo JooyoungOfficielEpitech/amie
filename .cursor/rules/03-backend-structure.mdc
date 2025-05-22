@@ -1,0 +1,50 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 백엔드 구조
+
+백엔드는 Express, TypeScript, MongoDB를 사용하여 구축되었습니다.
+
+## 주요 파일 및 디렉토리
+
+- [backend/src/app.ts](mdc:backend/src/app.ts) - Express 애플리케이션 설정
+- [backend/src/server.ts](mdc:backend/src/server.ts) - 서버 시작점
+- [backend/src/index.ts](mdc:backend/src/index.ts) - 애플리케이션 엔트리 포인트
+
+## API 구조
+
+- [backend/src/routes/](mdc:backend/src/routes) - API 엔드포인트 라우팅
+  - [backend/src/routes/authRoutes.ts](mdc:backend/src/routes/authRoutes.ts) - 인증 관련 라우트
+  - [backend/src/routes/userRoutes.ts](mdc:backend/src/routes/userRoutes.ts) - 사용자 관련 라우트
+  - [backend/src/routes/matchRoutes.ts](mdc:backend/src/routes/matchRoutes.ts) - 매칭 관련 라우트
+  - [backend/src/routes/chatRoutes.ts](mdc:backend/src/routes/chatRoutes.ts) - 채팅 관련 라우트
+
+## 컨트롤러 구조
+
+- [backend/src/controllers/](mdc:backend/src/controllers) - API 요청 처리 로직
+  - [backend/src/controllers/authController.ts](mdc:backend/src/controllers/authController.ts) - 인증 관련 컨트롤러
+  - [backend/src/controllers/userController.ts](mdc:backend/src/controllers/userController.ts) - 사용자 관련 컨트롤러
+  - [backend/src/controllers/matchController.ts](mdc:backend/src/controllers/matchController.ts) - 매칭 관련 컨트롤러
+  - [backend/src/controllers/chatController.ts](mdc:backend/src/controllers/chatController.ts) - 채팅 관련 컨트롤러
+
+## 데이터 모델
+
+- [backend/src/models/](mdc:backend/src/models) - MongoDB 스키마 및 모델
+  - [backend/src/models/User.ts](mdc:backend/src/models/User.ts) - 사용자 모델
+  - [backend/src/models/ChatRoom.ts](mdc:backend/src/models/ChatRoom.ts) - 채팅방 모델
+  - [backend/src/models/Message.ts](mdc:backend/src/models/Message.ts) - 메시지 모델
+  - [backend/src/models/MatchQueue.ts](mdc:backend/src/models/MatchQueue.ts) - 매칭 큐 모델
+
+## 미들웨어
+
+- [backend/src/middleware/](mdc:backend/src/middleware) - Express 미들웨어
+  - [backend/src/middleware/authMiddleware.ts](mdc:backend/src/middleware/authMiddleware.ts) - 인증 미들웨어
+
+## 실시간 통신
+
+- [backend/src/realtime/](mdc:backend/src/realtime) - Socket.IO 기반 실시간 통신
+  - [backend/src/realtime/socket.ts](mdc:backend/src/realtime/socket.ts) - 소켓 설정
+  - [backend/src/realtime/chat_gateway.ts](mdc:backend/src/realtime/chat_gateway.ts) - 채팅 관련 소켓 이벤트
+  - [backend/src/realtime/match_gateway.ts](mdc:backend/src/realtime/match_gateway.ts) - 매칭 관련 소켓 이벤트

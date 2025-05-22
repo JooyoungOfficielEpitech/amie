@@ -44,7 +44,6 @@ interface ChatPageProps {
     roomId: string; // Changed from optional to required based on App.tsx logic
     userId: string; // Add userId prop from App.tsx
     onCreditUpdate?: () => Promise<void>; // 크레딧 업데이트 함수 추가
-    isAutoSearchEnabled?: boolean; // Auto search 상태 추가
 }
 
 const ChatPage: React.FC<ChatPageProps> = ({ 
@@ -55,8 +54,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
     currentView, 
     roomId: initialRoomId, // Keep receiving roomId
     userId, // Receive userId from props
-    onCreditUpdate, // 크레딧 업데이트 함수 추가
-    isAutoSearchEnabled = false // Auto search 상태 추가
+    onCreditUpdate // 크레딧 업데이트 함수 추가
 }) => {
     const [chatSocket, setChatSocket] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -274,21 +272,19 @@ const ChatPage: React.FC<ChatPageProps> = ({
     // Re-run effect if currentRoomId changes (though ideally it shouldn't change often within the page)
     }, [currentRoomId, userId, onNavigateToDashboard]); // Add userId and onNavigateToDashboard to dependencies
 
-    // Auto search 기능을 위한 effect
+    // 기존 Auto search 기능 대신 상대방 나갈 때 처리
     useEffect(() => {
-        // 상대방이 나가고, Auto search가 활성화되었을 때 자동으로 대시보드로 이동
-        if (isPartnerLeft && isAutoSearchEnabled) {
-            console.log('[ChatPage] 상대방이 나갔고 Auto search가 활성화되어 있어 대시보드로 이동합니다. (Auto search 상태:', isAutoSearchEnabled, ')');
+        // 상대방이 나가면 일정 시간 후 대시보드로 이동
+        if (isPartnerLeft) {
+            console.log('[ChatPage] 상대방이 나갔습니다. 잠시 후 대시보드로 이동합니다.');
             // 약간의 지연 후에 대시보드로 이동 (사용자에게 상대방이 나갔다는 메시지를 보여줄 시간을 주기 위해)
             const timer = setTimeout(() => {
                 onNavigateToDashboard();
             }, 2000);
             
             return () => clearTimeout(timer);
-        } else if (isPartnerLeft) {
-            console.log('[ChatPage] 상대방이 나갔지만 Auto search가 비활성화되어 있어 자동 이동하지 않습니다. (Auto search 상태:', isAutoSearchEnabled, ')');
         }
-    }, [isPartnerLeft, isAutoSearchEnabled, onNavigateToDashboard]);
+    }, [isPartnerLeft, onNavigateToDashboard]);
 
     // Function to send a message
     const handleSendMessage = (text: string) => {

@@ -15,8 +15,8 @@ interface HeaderProps {
     creditBalance: number | null;
     onRefetchCredit?: () => Promise<void>; // Make it optional to avoid breaking changes
     userGender?: string; // 사용자 성별 추가
-    isAutoSearchEnabled?: boolean; // Auto search 상태
-    onAutoSearchChange?: (enabled: boolean) => void; // Auto search 상태 변경 콜백
+    isAutoSearchEnabled?: boolean; // Auto search 상태 추가
+    onAutoSearchChange?: (enabled: boolean) => void; // Auto search 상태 변경 콜백 추가
 }
 
 const Header: React.FC<HeaderProps> = ({ 
@@ -165,7 +165,7 @@ const Header: React.FC<HeaderProps> = ({
                     >
                         Auto search
                     </button>
-                )} 
+                )}
             </div>
 
             <RechargeModal

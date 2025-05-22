@@ -30,12 +30,17 @@ function App() {
   const [currentChatRoomId, setCurrentChatRoomId] = useState<string | null>(null); // State for current room ID
   const [userCredit, setUserCredit] = useState<number | null>(null); // Add state for user credit
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
-  // Auto search 기능을 위한 상태 추가
-  const [isAutoSearchEnabled, setIsAutoSearchEnabled] = useState<boolean>(false);
+  // Auto search 기능을 위한 상태 추가 - localStorage에서 초기값 가져오기
+  const [isAutoSearchEnabled, setIsAutoSearchEnabled] = useState<boolean>(() => {
+    const savedState = localStorage.getItem('isAutoSearchEnabled');
+    return savedState === 'true';
+  });
 
-  // isAutoSearchEnabled 변경될 때마다 로그 출력
+  // isAutoSearchEnabled 변경될 때마다 로그 출력 및 localStorage에 저장
   useEffect(() => {
     console.log('[App] isAutoSearchEnabled 상태 변경:', isAutoSearchEnabled);
+    // localStorage에 상태 저장 (로그아웃해도 유지)
+    localStorage.setItem('isAutoSearchEnabled', isAutoSearchEnabled ? 'true' : 'false');
   }, [isAutoSearchEnabled]);
 
   // Fetch user profile function (ensure setCurrentUserProfile is called correctly)
@@ -75,6 +80,12 @@ function App() {
     setIsLoggedIn(true);
     setActiveView('dashboard'); 
     setShowSignupFlow(false); 
+    
+    // 로그인 성공 시 localStorage에서 auto search 상태 명시적으로 가져오기
+    const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
+    console.log('[App] Login success - Reading auto search state from localStorage:', savedAutoSearchState);
+    setIsAutoSearchEnabled(savedAutoSearchState === 'true');
+    
     // fetchUserProfile은 useEffect에서 호출되지만, 지연 발생 가능성이 있어서 명시적으로 다시 호출
     setTimeout(() => {
       fetchUserProfile(); // 상태 업데이트 후 프로필 정보 명시적으로 다시 가져오기
@@ -228,13 +239,29 @@ function App() {
       }
   };
 
+  // 자동 매칭 상태를 위한 상태 변수 추가
+  const [shouldStartMatching, setShouldStartMatching] = useState<boolean>(false);
+
   const navigateToDashboard = () => {
-      if (isLoggedIn) {
-          // 메인 페이지로 이동할 때 localStorage에서 채팅방 ID 제거
-          localStorage.removeItem('currentChatRoomId');
-          setCurrentChatRoomId(null); 
-          setActiveView('dashboard');
+    if (isLoggedIn) {
+      // 채팅방에서 나올 때 (currentChatRoomId가 있는 상태에서 dashboard로 이동할 때)
+      const leavingChatRoom = !!currentChatRoomId;
+      
+      // 메인 페이지로 이동할 때 localStorage에서 채팅방 ID 제거
+      localStorage.removeItem('currentChatRoomId');
+      setCurrentChatRoomId(null);
+      
+      // 남성 사용자이고, 채팅방에서 나왔으며, auto search가 활성화된 경우 자동으로 매칭 시작
+      if (leavingChatRoom && isAutoSearchEnabled && currentUserProfile?.gender === 'male') {
+        console.log('[App] 채팅방에서 나왔고 Auto search가 활성화되어 있어 자동으로 매칭을 시작합니다.');
+        // 매칭 상태를 localStorage에 저장하여 MainPage에서 감지할 수 있도록 함
+        localStorage.setItem('autoStartMatching', 'true');
+        // 즉시 매칭 시작 상태로 설정 (MainPage 컴포넌트에 전달될 prop)
+        setShouldStartMatching(true);
       }
+      
+      setActiveView('dashboard');
+    }
   };
 
   const navigateToMyProfile = () => {
@@ -276,8 +303,7 @@ function App() {
                           onNavigateToSettings={navigateToSettings}
                           currentView={activeView}
                           onCreditUpdate={fetchUserProfile} // Pass the profile fetch function
-                          isAutoSearchEnabled={isAutoSearchEnabled}
-                          onAutoSearchChange={setIsAutoSearchEnabled}
+                          shouldStartMatching={shouldStartMatching}
                       />;
           case 'chat':
               if (!currentChatRoomId) {
@@ -291,6 +317,10 @@ function App() {
                   // Optionally show loading or navigate away
                   return <div>Loading user data...</div>; // Or navigateToDashboard();
               }
+              // ChatPage 진입 시 shouldStartMatching 상태 초기화
+              if (shouldStartMatching) {
+                  setShouldStartMatching(false);
+              }
               // Now userId is guaranteed to be a string here
               return <ChatPage 
                           onLogout={handleLogout} 
@@ -301,9 +331,12 @@ function App() {
                           roomId={currentChatRoomId} 
                           userId={userId} // Now guaranteed to be a string
                           onCreditUpdate={fetchUserProfile} // 크레딧 업데이트 함수 추가
-                          isAutoSearchEnabled={isAutoSearchEnabled} // Auto search 상태 전달
                       />;
           case 'my-profile':
+              // MyProfile 진입 시 shouldStartMatching 상태 초기화
+              if (shouldStartMatching) {
+                  setShouldStartMatching(false);
+              }
               // No need to re-check userId here
               return <MyProfile 
                           onNavigateToDashboard={navigateToDashboard}
@@ -315,6 +348,10 @@ function App() {
                           onNavigateToChat={navigateToChat}
                       />; 
           case 'settings':
+               // Settings 진입 시 shouldStartMatching 상태 초기화
+               if (shouldStartMatching) {
+                   setShouldStartMatching(false);
+               }
                // No need to re-check userId here
               return <Settings 
                           onNavigateToDashboard={navigateToDashboard}
@@ -334,9 +371,8 @@ function App() {
                           onNavigateToMyProfile={navigateToMyProfile} 
                           onNavigateToSettings={navigateToSettings}
                           currentView={activeView}
-                          onCreditUpdate={fetchUserProfile} 
-                          isAutoSearchEnabled={isAutoSearchEnabled}
-                          onAutoSearchChange={setIsAutoSearchEnabled}
+                          onCreditUpdate={fetchUserProfile}
+                          shouldStartMatching={shouldStartMatching} 
                        />;
       }
   };
@@ -374,6 +410,13 @@ function App() {
       console.log('[App] Token found, setting logged in state to true.');
       setIsLoggedIn(true);
       
+      // 토큰이 있으면 localStorage에서 auto search 상태도 확인
+      const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
+      console.log('[App] Token check - Reading auto search state from localStorage:', savedAutoSearchState);
+      if (savedAutoSearchState !== null) {
+        setIsAutoSearchEnabled(savedAutoSearchState === 'true');
+      }
+      
       // 저장된 채팅방 ID가 있는지 확인
       const savedRoomId = localStorage.getItem('currentChatRoomId');
       if (savedRoomId) {
@@ -394,16 +437,36 @@ function App() {
       if (isLoggedIn) {
           console.log("[App] isLoggedIn is true, fetching user credit.");
           fetchUserProfile(); 
+          
+          // 로그인 상태가 되면 localStorage에서 auto search 상태 다시 확인
+          const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
+          console.log('[App] isLoggedIn changed - Reading auto search state from localStorage:', savedAutoSearchState);
+          if (savedAutoSearchState !== null) {
+              setIsAutoSearchEnabled(savedAutoSearchState === 'true');
+          }
       }
   }, [isLoggedIn]); // Run whenever isLoggedIn changes
 
-  // 매칭된 채팅방이 있으면 자동으로 채팅방으로 이동
-  useEffect(() => {
-    if (isLoggedIn && currentChatRoomId && activeView === 'dashboard') {
-      console.log('[App] Auto navigating to chat room:', currentChatRoomId);
-      setActiveView('chat');
-    }
-  }, [isLoggedIn, currentChatRoomId, activeView]);
+  // 렌더링 전에 헤더에 표시할 컴포넌트
+  const renderHeader = () => {
+    if (!isLoggedIn) return null;
+    
+    return (
+      <Header 
+        creditBalance={userCredit} 
+        onRefetchCredit={fetchUserProfile}
+        userGender={currentUserProfile?.gender} // 성별 정보 전달
+        isAutoSearchEnabled={isAutoSearchEnabled} // Auto search 상태 전달
+        onAutoSearchChange={handleAutoSearchChange} // Auto search 변경 핸들러 전달
+      />
+    );
+  };
+  
+  // Auto search 상태 변경 핸들러
+  const handleAutoSearchChange = (enabled: boolean) => {
+    console.log('[App] Auto search 상태 변경:', enabled);
+    setIsAutoSearchEnabled(enabled);
+  };
 
   return (
     <div className="app">
@@ -427,13 +490,7 @@ function App() {
                   overflow: 'hidden' // Prevent this container from scrolling
                 }}>
                   {/* Pass userCredit and fetchUserProfile to Header */}
-                  <Header 
-                    creditBalance={userCredit} 
-                    onRefetchCredit={fetchUserProfile}
-                    userGender={currentUserProfile?.gender} // 사용자 성별 정보 전달
-                    isAutoSearchEnabled={isAutoSearchEnabled}
-                    onAutoSearchChange={setIsAutoSearchEnabled}
-                  /> 
+                  {renderHeader()}
                   {/* Container for the actual page content (MainPage, ChatPage, etc.) */}
                   <div style={{
                     flexGrow: 1, // Take remaining vertical space
