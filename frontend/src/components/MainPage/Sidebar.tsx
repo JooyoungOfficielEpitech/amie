@@ -42,8 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             case 'Log out':
                 onLogout();
                 break;
-            default:
-                console.log(`Unknown sidebar item: ${item}`);
+            // Default case removed - no action needed for unknown items
         }
     };
 

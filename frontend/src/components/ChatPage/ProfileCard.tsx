@@ -73,28 +73,23 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
             }
             setCurrentChatRoomId(roomId); // roomId prop으로 내부 상태 업데이트
 
-            console.log(`[ProfileCard] 매칭 상태 확인 시작: roomId=${roomId}`);
             setIsLoading(true);
             setError(null);
             try {
                 const response = await fetchWithAuth('/match/status'); // 이 API는 현재 사용자의 매칭 상태를 가져옴
                 const data: MatchStatusResponse = await response.json();
 
-                console.log('[ProfileCard] 매칭 상태 응답:', data);
-
                 if (!response.ok) {
                     throw new Error(data.error || '매칭 상태를 불러오는데 실패했습니다.');
                 }
 
                 if (data.success && data.matchedUser && data.chatRoomId) {
-                    console.log(`[ProfileCard] 매칭된 사용자 정보: nickname=${data.matchedUser.nickname}, gender=${data.matchedUser.gender}`);
                     setMatchedUser(data.matchedUser);
                     setCurrentChatRoomId(data.chatRoomId); // 실제 chatRoomId로 업데이트
                     
                     // unlockedPhotos 상태 초기화
                     const initialUnlockStates = Array(data.matchedUser.profileImages.length).fill(false);
                     if (data.matchedUser.unlockedPhotoSlotIndexes) {
-                        console.log(`[ProfileCard] 해제된 사진 슬롯: ${data.matchedUser.unlockedPhotoSlotIndexes.join(', ')}`);
                         data.matchedUser.unlockedPhotoSlotIndexes.forEach(index => {
                             if (index >= 0 && index < initialUnlockStates.length) {
                                 initialUnlockStates[index] = true;
@@ -104,10 +99,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
                     setUnlockedPhotos(initialUnlockStates);
 
                 } else if (data.success && data.isWaiting) {
-                    console.log('[ProfileCard] 매칭 대기 중');
                     setMatchedUser(null);
                 } else {
-                    console.log('[ProfileCard] 매칭 정보 없음:', data.error || '매칭 정보를 찾을 수 없습니다.');
                     setMatchedUser(null);
                     setError(data.error || '매칭 정보를 찾을 수 없습니다.');
                 }
@@ -147,7 +140,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
                         throw new Error(response.data.error || '사진 해제에 실패했습니다.');
                     }
                     
-                    console.log(`Photo ${photoIndex + 1} successfully unlocked via API.`);
+                    // Photo unlocked successfully
                 } catch (err: any) {
                     console.error('Photo unlock API error:', err);
                     // 오류 발생 시 UI 상태 롤백
@@ -187,7 +180,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
     const confirmLeaveChat = () => {
         // Disable if socket or roomId is missing, or already leaving
         if (!chatSocket || !roomId || isLeaving) return;
-        console.log(`[confirmLeaveChat] Emitting leave_chat for room ${roomId}`);
+        // Emit leave_chat event to server
         setIsLeaving(true);
         
         chatSocket.emit('leave_chat', roomId);

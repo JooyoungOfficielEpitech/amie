@@ -60,7 +60,6 @@ const Settings: React.FC<SettingsProps> = ({
     const confirmAccountDeletion = async () => {
         setIsDeleting(true);
         setError(null);
-        console.log("Proceeding with account deletion...");
 
         try {
             const profileResponse = await userApi.getProfile();
@@ -68,12 +67,10 @@ const Settings: React.FC<SettingsProps> = ({
                 throw new Error('사용자 ID를 가져올 수 없습니다.');
             }
             const userId = profileResponse.user.id;
-            console.log("User ID for deletion:", userId);
 
             const deleteResponse = await userApi.deleteAccount(userId);
 
             if (deleteResponse.success) {
-                console.log("Account deletion successful.");
                 setIsConfirmModalOpen(false);
                 onLogout();
             } else {
@@ -90,7 +87,6 @@ const Settings: React.FC<SettingsProps> = ({
             // Attempt to find the success message within the error structure
             if (err.response?.data?.message === successMessage) {
                 // Treat this specific case as success despite being caught
-                console.log("Deletion success message caught in error block, handling as success.");
                 setIsConfirmModalOpen(false); // Close modal
                 onLogout(); // Log out
                 // Explicitly return here to prevent setting the error state below
@@ -115,7 +111,6 @@ const Settings: React.FC<SettingsProps> = ({
 
     const closeModal = () => {
         if (isDeleting) return;
-        console.log("Account deletion cancelled.");
         setIsConfirmModalOpen(false);
     };
 

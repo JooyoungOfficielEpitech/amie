@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-console.log('[SupabaseClient] import.meta.env:', import.meta.env); // 디버깅 로그 유지
-
 // Supabase URL과 서비스 키를 환경 변수에서 가져옵니다.
 // .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_SERVICE_KEY를 설정해야 합니다.
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

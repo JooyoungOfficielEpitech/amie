@@ -8,20 +8,16 @@ import { chatApi } from '../../api'; // <-- Import chatApi
 
 // 환경에 맞는 소켓 베이스 URL을 반환하는 함수 (SocketContext와 동일한 로직)
 const getSocketBaseUrl = () => {
-  console.log('[ChatPage] 환경 확인:', import.meta.env.PROD ? 'Production' : 'Development');
-  
   // 프로덕션 환경에서는 현재 호스트 기반으로 WebSocket URL 생성
   if (import.meta.env.PROD) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;  // host는 도메인과 포트를 포함
     const url = `${protocol}//${host}`;
-    console.log('[ChatPage] Production Socket URL:', url);
     return url;
   }
   
   // 개발 환경에서는 환경 변수 또는 기본값 사용
   const devUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-  console.log('[ChatPage] Development Socket URL:', devUrl);
   return devUrl;
 };
 
@@ -72,7 +68,6 @@ const ChatPage: React.FC<ChatPageProps> = ({
             // localStorage에서 채팅방 ID 확인
             const savedRoomId = localStorage.getItem('currentChatRoomId');
             if (savedRoomId) {
-                console.log('[ChatPage] Using roomId from localStorage:', savedRoomId);
                 // 현재는 상태를 직접 변경할 수 없으므로 dashboard로 이동
                 // 이후 App.tsx의 효과에서 chat으로 다시 이동될 것임
                 onNavigateToDashboard();
@@ -133,15 +128,11 @@ const ChatPage: React.FC<ChatPageProps> = ({
                 // JSON 형식인 경우 파싱하여 토큰 값만 추출
                 const tokenObj = JSON.parse(token);
                 processedToken = tokenObj.token || tokenObj.accessToken || token;
-                console.log('[Socket Debug - Chat] Token appears to be JSON, extracted:', processedToken.slice(0, 10) + '...');
-            } else if (token) {
-                console.log('[Socket Debug - Chat] Using token as is:', token.slice(0, 10) + '...');
             }
             
             // Bearer 접두사가 있으면 제거
             if (processedToken.startsWith('Bearer ')) {
                 processedToken = processedToken.substring(7);
-                console.log('[Socket Debug - Chat] Removed Bearer prefix:', processedToken.slice(0, 10) + '...');
             }
         } catch (error) {
             console.error('[Socket Debug - Chat] Error processing token:', error);
@@ -153,12 +144,8 @@ const ChatPage: React.FC<ChatPageProps> = ({
             return;
         }
 
-        // Socket debugging
-        console.log('[Socket Debug - Chat] Connecting with token:', processedToken.slice(0, 10) + '...');
-
         // 베이스 URL을 구하는 함수 사용
         const baseUrl = getSocketBaseUrl();
-        console.log('[Socket Debug - Chat] 연결 URL:', `${baseUrl}/chat`);
 
         // Connect to the /chat namespace with the correct URL
         const socket = io(`${baseUrl}/chat`, {
@@ -184,11 +171,9 @@ const ChatPage: React.FC<ChatPageProps> = ({
         setChatSocket(socket);
 
         socket.on('connect', () => {
-            console.log(`Connected to /chat namespace for room ${currentRoomId}`);
             setError(null);
             
             // 수동 인증 이벤트 호출
-            console.log('[ChatPage] 인증 이벤트 호출...');
             socket.emit('authenticate', { 
                 userId, 
                 token: processedToken 
@@ -199,7 +184,6 @@ const ChatPage: React.FC<ChatPageProps> = ({
         });
 
         socket.on('disconnect', (reason: any) => {
-            console.log('Disconnected from /chat namespace:', reason);
             // Handle potential need for reconnection or error display
         });
 
@@ -215,7 +199,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
 
         // 인증 결과 이벤트 리스너 추가
         socket.on('authenticated', (response: any) => {
-            console.log('[ChatPage] 인증 성공:', response);
+            // Authentication successful
         });
 
         // Listener for when a user disconnects (the event you added)
@@ -227,7 +211,6 @@ const ChatPage: React.FC<ChatPageProps> = ({
 
         // Listener for successful leave confirmation from backend
         socket.on('chat_left', (data: { roomId: string }) => {
-            console.log(`Successfully left room ${data.roomId}`);
             // Navigate away after confirmation
             onNavigateToDashboard(); 
         });
@@ -241,7 +224,6 @@ const ChatPage: React.FC<ChatPageProps> = ({
         
         // Listener for new messages from the server - use 'new-message'
         socket.on('new-message', (message: ChatMessage) => {
-            console.log('Received new-message:', message);
             // Adapt validation to the new structure
             if (message && message._id && message.senderId && message.message && message.createdAt) {
                  const messageWithStringDate = {
@@ -256,7 +238,6 @@ const ChatPage: React.FC<ChatPageProps> = ({
 
         // Cleanup on component unmount or roomId change
         return () => {
-            console.log('Disconnecting chat socket...');
             socket.disconnect();
             setChatSocket(null);
             socket.off('new-message'); 
@@ -276,7 +257,6 @@ const ChatPage: React.FC<ChatPageProps> = ({
     useEffect(() => {
         // 상대방이 나가면 일정 시간 후 대시보드로 이동
         if (isPartnerLeft) {
-            console.log('[ChatPage] 상대방이 나갔습니다. 잠시 후 대시보드로 이동합니다.');
             // 약간의 지연 후에 대시보드로 이동 (사용자에게 상대방이 나갔다는 메시지를 보여줄 시간을 주기 위해)
             const timer = setTimeout(() => {
                 onNavigateToDashboard();
@@ -294,14 +274,12 @@ const ChatPage: React.FC<ChatPageProps> = ({
         }
         if (text.trim() === '') return; // Don't send empty messages
 
-        console.log(`Sending message to room ${currentRoomId}: ${text}`);
         // Emit message to server using the correct event name 'send-message'
         chatSocket.emit('send-message', {
             // Backend expects chatRoomId and message according to gateway code
             chatRoomId: currentRoomId, 
             message: text 
         });
-
     };
 
     return (

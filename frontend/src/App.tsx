@@ -38,21 +38,17 @@ function App() {
 
   // isAutoSearchEnabled 변경될 때마다 로그 출력 및 localStorage에 저장
   useEffect(() => {
-    console.log('[App] isAutoSearchEnabled 상태 변경:', isAutoSearchEnabled);
     // localStorage에 상태 저장 (로그아웃해도 유지)
     localStorage.setItem('isAutoSearchEnabled', isAutoSearchEnabled ? 'true' : 'false');
   }, [isAutoSearchEnabled]);
 
   // Fetch user profile function (ensure setCurrentUserProfile is called correctly)
   const fetchUserProfile = useCallback(async () => {
-      console.log('[App fetchUserProfile] Fetching user profile...'); 
       try {
-          const response = await userApi.getProfile(); 
-          console.log('[App fetchUserProfile] API Response:', response); 
+          const response = await userApi.getProfile();
           if (response.success && response.user) {
               setCurrentUserProfile(response.user); // Set the full profile object
               setUserCredit(response.user.credit); // Set credit separately
-              console.log('[App fetchUserProfile] User profile state SET:', response.user);
           } else {
               const message = response.message || '프로필 정보 없음';
               console.error("[App fetchUserProfile] Failed to get profile:", message);
@@ -70,11 +66,9 @@ function App() {
 
   // Function to handle successful login - Wrapped in useCallback
   const handleLoginSuccess = useCallback((token?: string) => {
-    console.log("Login Success triggered!");
     // 명시적으로 토큰을 accessToken으로 저장 (중복 작업이지만 안전성 확보)
     if (token) {
       localStorage.setItem('accessToken', token);
-      console.log("Token explicitly saved to localStorage as 'accessToken'");
     }
     
     setIsLoggedIn(true);
@@ -83,7 +77,6 @@ function App() {
     
     // 로그인 성공 시 localStorage에서 auto search 상태 명시적으로 가져오기
     const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
-    console.log('[App] Login success - Reading auto search state from localStorage:', savedAutoSearchState);
     setIsAutoSearchEnabled(savedAutoSearchState === 'true');
     
     // fetchUserProfile은 useEffect에서 호출되지만, 지연 발생 가능성이 있어서 명시적으로 다시 호출
@@ -94,14 +87,12 @@ function App() {
 
   // Function to handle starting the NORMAL signup process
   const handleStartSignup = () => {
-    console.log("Start Normal Signup triggered!");
     setSocialSignupData(null); // Ensure no social data is present
     setShowSignupFlow(true);
   };
 
   // Function to handle starting the SOCIAL signup process
   const handleStartSocialSignup = (provider: 'google' | 'kakao', socialEmail: string) => {
-    console.log("Start Social Signup triggered for:", provider, socialEmail);
     if (!socialEmail) {
         alert("Google 계정에서 이메일 정보를 가져올 수 없습니다. Google 설정을 확인해주세요.");
         return;
@@ -114,7 +105,6 @@ function App() {
 
   // Unified function to handle signup completion (both normal and social)
   const handleSignupComplete = async (finalData: SignupData) => {
-      console.log("Signup Complete in App:", finalData);
       setIsLoading(true);
       setError(null);
 
@@ -141,7 +131,6 @@ function App() {
 
           // Check if it's a social signup flow
           if (socialSignupData) {
-              console.log("Processing SOCIAL signup...");
               const socialPayload: SocialRegisterData = {
                   provider: socialSignupData.provider,
                   socialEmail: socialSignupData.socialEmail,
@@ -153,12 +142,8 @@ function App() {
                   profileImages: profileImageUrls,
                   businessCardImage: businessCardImageUrl // 실제 URL 사용
               };
-              console.log("Social Register API Payload:", socialPayload);
               response = await authApi.socialRegister(socialPayload);
-              console.log("Social Register API Response:", response);
-
           } else {
-              console.log("Processing NORMAL signup...");
               // Normal email signup
               const registerPayload: RegisterData = {
                   email: finalData.email,
@@ -171,16 +156,13 @@ function App() {
                   profileImages: profileImageUrls,
                   businessCardImage: businessCardImageUrl // 실제 URL 사용
               };
-              console.log("Register API Payload:", registerPayload);
               response = await authApi.register(registerPayload);
-              console.log("Register API Response:", response);
           }
 
           // Handle API response (common part)
           if (response.success) { 
               // Social signup might return token directly, normal signup might not
               if (response.token) {
-                 console.log("Signup successful, logging in...");
                  localStorage.setItem('accessToken', response.token);
                  handleLoginSuccess(); // Use existing login success handler
                  
@@ -211,14 +193,12 @@ function App() {
 
   // Function to cancel/close signup flow
   const handleCloseSignup = () => {
-      console.log("Signup Flow Closed/Cancelled");
       setShowSignupFlow(false);
       setSocialSignupData(null); // Reset social signup data on close
   }
 
   // Function to handle logout
   const handleLogout = () => {
-      console.log("Logout triggered!"); 
       localStorage.removeItem('accessToken'); // Ensure token is removed on logout
       localStorage.removeItem('currentChatRoomId'); // 로그아웃 시 채팅방 ID 제거
       setIsLoggedIn(false);
@@ -231,7 +211,6 @@ function App() {
   // Navigation functions
   const navigateToChat = (roomId: string) => { 
       if (isLoggedIn) {
-          console.log(`Navigating to chat room: ${roomId}`);
           // 채팅방 ID를 localStorage에 저장
           localStorage.setItem('currentChatRoomId', roomId);
           setCurrentChatRoomId(roomId); 
@@ -253,7 +232,6 @@ function App() {
       
       // 남성 사용자이고, 채팅방에서 나왔으며, auto search가 활성화된 경우 자동으로 매칭 시작
       if (leavingChatRoom && isAutoSearchEnabled && currentUserProfile?.gender === 'male') {
-        console.log('[App] 채팅방에서 나왔고 Auto search가 활성화되어 있어 자동으로 매칭을 시작합니다.');
         // 매칭 상태를 localStorage에 저장하여 MainPage에서 감지할 수 있도록 함
         localStorage.setItem('autoStartMatching', 'true');
         // 즉시 매칭 시작 상태로 설정 (MainPage 컴포넌트에 전달될 prop)
@@ -283,11 +261,8 @@ function App() {
       // Derive userId directly from the LATEST state value within the render function
       const userId = currentUserProfile?.id; 
 
-      console.log(`[App renderActiveView Decision] activeView: ${activeView}, isLoggedIn: ${isLoggedIn}, userId: ${userId}`);
-
       // Simplified check: If logged in, but userId is still not available (falsy), show loading.
       if (isLoggedIn && !userId) { 
-          console.log(`[App renderActiveView] isLoggedIn is true, but userId ('${userId}') is falsy. Returning loading indicator.`);
           return <div>Loading user data...</div>; 
       }
       
@@ -364,7 +339,6 @@ function App() {
                       />;
           default:
               // Fallback to dashboard if view is unknown, assuming profile loaded if logged in
-              console.log(`[App renderActiveView] Default case, rendering MainPage.`);
               return <MainPage 
                           onLogout={handleLogout} 
                           onNavigateToChat={navigateToChat} 
@@ -382,23 +356,19 @@ function App() {
     // Check if token exists in localStorage (using accessToken as standard)
     const token = localStorage.getItem('accessToken');
     
-    // 토큰 내용 디버깅
     if (token) {
-      console.log('[App] Token debugging - token exists');
       try {
         // Base64 디코딩으로 토큰 내용 확인
         const tokenParts = token.split('.');
         if (tokenParts.length === 3) {
           const payload = JSON.parse(atob(tokenParts[1]));
-          console.log('[App] Token payload:', payload);
           
           // 만료시간 확인
           if (payload.exp) {
             const expiryDate = new Date(payload.exp * 1000);
             const now = new Date();
             const isExpired = expiryDate < now;
-            console.log('[App] Token expiry:', expiryDate.toISOString());
-            console.log('[App] Token is ' + (isExpired ? 'EXPIRED' : 'valid'));
+            // Token expiry handled silently
           }
         }
       } catch (error) {
@@ -407,12 +377,10 @@ function App() {
     }
     
     if (token) {
-      console.log('[App] Token found, setting logged in state to true.');
       setIsLoggedIn(true);
       
       // 토큰이 있으면 localStorage에서 auto search 상태도 확인
       const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
-      console.log('[App] Token check - Reading auto search state from localStorage:', savedAutoSearchState);
       if (savedAutoSearchState !== null) {
         setIsAutoSearchEnabled(savedAutoSearchState === 'true');
       }
@@ -420,7 +388,6 @@ function App() {
       // 저장된 채팅방 ID가 있는지 확인
       const savedRoomId = localStorage.getItem('currentChatRoomId');
       if (savedRoomId) {
-        console.log('[App] Saved chat room ID found:', savedRoomId);
         setCurrentChatRoomId(savedRoomId);
         setActiveView('chat');
       }
@@ -435,12 +402,10 @@ function App() {
   // Use a separate useEffect to fetch credit *after* isLoggedIn is confirmed true
   useEffect(() => {
       if (isLoggedIn) {
-          console.log("[App] isLoggedIn is true, fetching user credit.");
           fetchUserProfile(); 
           
           // 로그인 상태가 되면 localStorage에서 auto search 상태 다시 확인
           const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
-          console.log('[App] isLoggedIn changed - Reading auto search state from localStorage:', savedAutoSearchState);
           if (savedAutoSearchState !== null) {
               setIsAutoSearchEnabled(savedAutoSearchState === 'true');
           }
@@ -464,7 +429,6 @@ function App() {
   
   // Auto search 상태 변경 핸들러
   const handleAutoSearchChange = (enabled: boolean) => {
-    console.log('[App] Auto search 상태 변경:', enabled);
     setIsAutoSearchEnabled(enabled);
   };
 

@@ -55,16 +55,13 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
         const credentials: LoginCredentials = { email, password };
 
         try {
-            console.log('Email Login Attempt with:', credentials);
             const response = await authApi.login(credentials);
-            console.log('Login API Response:', response);
 
             if (response.success && response.token) {
                 // Store the token using the new standard key
                 localStorage.setItem('accessToken', response.token);
                 // TODO: Implement rememberMe functionality if needed
                 if (rememberMe) {
-                    console.log('Remember me is checked, but not implemented yet.');
                     // localStorage.setItem('rememberMe', 'true'); // Example
                 }
                 onLoginSuccess(response.token); // Notify parent component of success
@@ -83,7 +80,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
     // --- Google Login Implementation --- 
     const googleLogin = useGoogleLogin({
         onSuccess: async (tokenResponse: Omit<TokenResponse, 'error' | 'error_description' | 'error_uri'>) => {
-            console.log('Google Login Success (Token Response):', tokenResponse);
             setIsLoading(true);
             setError(null);
 
@@ -97,12 +93,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
             }
 
             try {
-                console.log('Sending Google access token to backend...', accessToken);
                 const backendResponse = await authApi.socialLogin({ 
                     provider: 'google', 
                     token: accessToken 
                 });
-                console.log('Backend socialLogin Response:', backendResponse);
 
                 if (backendResponse.success && backendResponse.token) {
                     // 인증 관련 localStorage 항목 설정 - auto search 설정은 그대로 유지
@@ -111,12 +105,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
                 } else {
                     // Check if the reason is "needs registration"
                     if (!backendResponse.success && backendResponse.error?.includes('회원가입이 필요합니다')) {
-                        console.log('User not registered, need to start signup flow.');
-                        // TODO: Implement actual signup flow initiation here (pass necessary data)
-                        
-                        // Remove the alert
-                        // alert('Google 계정으로 가입된 정보가 없습니다. 추가 정보를 입력하여 회원가입을 완료해주세요.'); 
-                        
                         // Call the function passed from App.tsx to start social signup
                         // Safely access provider and socialEmail from the response
                         const provider = backendResponse.provider; // Assuming provider is always present
@@ -165,8 +153,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
     };
 
     const handleKakaoLogin = () => {
-        console.log('Kakao Login button clicked - showing placeholder modal.');
-        
         // 이전에 저장된 토큰이나 채팅방 ID만 제거하고 auto search 설정은 유지
         localStorage.removeItem('accessToken');
         localStorage.removeItem('currentChatRoomId');
@@ -249,26 +235,22 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
                 {AppStrings.LOGIN_SIGNUP_PROMPT} <a href="#" onClick={handleStartSignupClick}>{AppStrings.LOGIN_SIGNUP_LINK}</a>
             </p>
 
-            <p className={styles.footerText}>
-                {AppStrings.LOGIN_TERMS_AGREEMENT_PREFIX} <a href="#">{AppStrings.LOGIN_TERMS_LINK}</a>. 
-                {AppStrings.LOGIN_PRIVACY_AGREEMENT_PREFIX} <a href="#">{AppStrings.LOGIN_PRIVACY_LINK}</a>.
-            </p>
-
             {/* Kakao Login Placeholder Modal */}
-            <Modal
+            <Modal 
                 isOpen={isKakaoModalOpen}
                 onClose={closeKakaoModal}
                 title={AppStrings.KAKAO_LOGIN_MODAL_TITLE}
-                footer={
-                    <button onClick={closeKakaoModal} className={styles.button}>
-                        {AppStrings.KAKAO_LOGIN_MODAL_CONFIRM_BUTTON}
-                    </button>
-                }
             >
                 <p>{AppStrings.KAKAO_LOGIN_MODAL_MESSAGE}</p>
+                <button 
+                    onClick={closeKakaoModal} 
+                    className={styles.modalCloseBtn}
+                >
+                    {AppStrings.KAKAO_LOGIN_MODAL_CONFIRM_BUTTON}
+                </button>
             </Modal>
         </div>
     );
-}
+};
 
 export default Login; 

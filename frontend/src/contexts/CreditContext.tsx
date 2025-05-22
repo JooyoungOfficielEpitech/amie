@@ -78,14 +78,12 @@ export const CreditProvider: React.FC<CreditProviderProps> = ({ children }) => {
   const fetchCredit = useCallback(async () => {
     // 이미 요청 중이면 무시
     if (isFetchingRef.current) {
-      console.log('[CreditContext] Skipping fetch, already in progress');
       return cachedCreditRef.current;
     }
     
     // 2초 이내에 이미 가져온 경우 캐싱된 값 반환
     const now = Date.now();
     if (now - lastFetchTimeRef.current < 2000) {
-      console.log('[CreditContext] Using cached credit:', cachedCreditRef.current);
       return cachedCreditRef.current;
     }
     
@@ -94,7 +92,6 @@ export const CreditProvider: React.FC<CreditProviderProps> = ({ children }) => {
     isFetchingRef.current = true;
     
     try {
-      console.log('[CreditContext] Fetching latest credit data from server...');
       const response = await creditApi.getCurrent();
       
       if (response.success && response.data) {
@@ -104,7 +101,6 @@ export const CreditProvider: React.FC<CreditProviderProps> = ({ children }) => {
         
         // 상태 업데이트
         setCredit(response.data.credit);
-        console.log('[CreditContext] Credit updated to:', response.data.credit);
         
         return response.data.credit;
       } else {

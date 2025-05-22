@@ -39,7 +39,6 @@ const Header: React.FC<HeaderProps> = ({
     // 컴포넌트 마운트 시 초기 크레딧 데이터 가져오기
     useEffect(() => {
         const initCredit = async () => {
-            console.log('[Header] Initial credit fetch');
             await fetchCredit();
         };
         initCredit();
@@ -49,12 +48,10 @@ const Header: React.FC<HeaderProps> = ({
     useEffect(() => {
         // 컨텍스트 크레딧 업데이트가 있을 경우
         if (contextCredit !== undefined && contextCredit !== null) {
-            console.log('[Header] Context credit updated:', contextCredit);
             setDisplayCredit(contextCredit);
         } 
         // 백업: 프롭스 크레딧 업데이트가 있을 경우
         else if (propsCreditBalance !== null && propsCreditBalance !== displayCredit) {
-            console.log('[Header] Props credit updated:', propsCreditBalance);
             setDisplayCredit(propsCreditBalance);
         }
     }, [contextCredit, propsCreditBalance, displayCredit]);
@@ -63,11 +60,8 @@ const Header: React.FC<HeaderProps> = ({
     useEffect(() => {
         if (!matchSocket || !isConnected) return;
         
-        console.log('[Header] Setting up socket listeners for credit updates');
-        
         // 크레딧 업데이트 이벤트 리스너
         const handleCreditUpdate = (data: { credit: number }) => {
-            console.log('[Header] Received credit update via socket:', data);
             if (data && typeof data.credit === 'number') {
                 setDisplayCredit(data.credit);
             }
@@ -78,7 +72,6 @@ const Header: React.FC<HeaderProps> = ({
         
         // 컴포넌트 언마운트 시 이벤트 리스너 제거
         return () => {
-            console.log('[Header] Cleaning up socket listeners');
             matchSocket.off('credit_update', handleCreditUpdate);
         };
     }, [matchSocket, isConnected]);
@@ -97,12 +90,10 @@ const Header: React.FC<HeaderProps> = ({
         setIsLoadingRecharge(true);
         setRechargeError(null);
         try {
-            console.log(`[Header] Processing recharge of ${amount} credits`);
             await charge({ amount, description: '크레딧 충전 (Modal)' });
             
             // 크레딧 데이터 즉시 갱신
             await fetchCredit();
-            console.log('[Header] Recharge completed successfully');
         } catch (err: any) {
             console.error("[Header] Error during recharge:", err);
             const errorMsg = err.message || '충전 중 오류 발생';
@@ -122,12 +113,10 @@ const Header: React.FC<HeaderProps> = ({
         }
         
         const newValue = !isToggleOn;
-        console.log('[Header] Auto search 상태 변경:', isToggleOn, '->', newValue);
         setIsToggleOn(newValue);
         
         // 부모 컴포넌트에 변경 알림
         if (onAutoSearchChange) {
-            console.log('[Header] 부모 컴포넌트에 Auto search 상태 변경 알림:', newValue);
             onAutoSearchChange(newValue);
         } else {
             console.warn('[Header] onAutoSearchChange 함수가 없어 부모 컴포넌트에 알릴 수 없습니다.');

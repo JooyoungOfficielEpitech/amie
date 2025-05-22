@@ -15,12 +15,10 @@ const AuthAwareApp: React.FC = () => {
     const verifyAuthentication = async () => {
       // 로그인 상태이고 토큰 검증이 아직 수행되지 않은 경우에만 실행
       if (isLoggedIn && !isTokenVerified && !isVerifying) {
-        console.log('[AuthAwareApp] 로그인 상태이지만 토큰 검증이 필요함');
         setIsVerifying(true);
         
         try {
           const isValid = await verifyToken();
-          console.log('[AuthAwareApp] 토큰 검증 결과:', isValid);
         } catch (error) {
           console.error('[AuthAwareApp] 토큰 검증 중 오류:', error);
         } finally {
@@ -40,14 +38,9 @@ const AuthAwareApp: React.FC = () => {
   // 모든 필수 데이터가 로드됐는지 확인
   useEffect(() => {
     if (isLoggedIn && isTokenVerified) {
-      console.log('[AuthAwareApp] 토큰 검증 완료, 크레딧 데이터 확인 중:', credit);
-      
       // 크레딧 값이 유효하고 로딩중이 아닌 경우
       if (credit !== undefined && credit !== null && !creditLoading) {
-        console.log('[AuthAwareApp] 모든 데이터 준비 완료, 앱 렌더링');
         setAllDataReady(true);
-      } else {
-        console.log('[AuthAwareApp] 크레딧 데이터 로딩 중 또는 아직 유효하지 않음');
       }
     }
   }, [isLoggedIn, isTokenVerified, credit, creditLoading]);

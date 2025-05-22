@@ -52,14 +52,11 @@ export function useCreditCheck(
       // 마지막 갱신 시간 확인 (2초 이내 중복 요청 방지)
       const now = Date.now();
       if (now - lastCheckTimeRef.current < 2000) {
-        console.log('[useCreditCheck] Skipping refresh, checked recently');
         return;
       }
       
       await fetchCredit();
       lastCheckTimeRef.current = now;
-      
-      console.log(`[useCreditCheck] Credit refreshed for ${serviceType}: ${credit}`);
     } catch (err: any) {
       setError(err.message || '크레딧 정보를 가져오는데 실패했습니다.');
       console.error('[useCreditCheck] Error refreshing credit:', err);
@@ -98,8 +95,6 @@ export function useCreditCheck(
     // 요구 크레딧 이상인지 확인
     const hasEnoughCredit = currentCredit >= requiredAmount;
     setHasSufficientCredit(hasEnoughCredit);
-    
-    console.log(`[useCreditCheck] Credit check for ${serviceType}: ${currentCredit}/${requiredAmount} (${hasEnoughCredit ? 'sufficient' : 'insufficient'})`);
     
     // 로딩 상태 업데이트
     setIsLoading(false);

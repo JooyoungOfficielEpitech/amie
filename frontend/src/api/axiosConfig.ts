@@ -1,12 +1,5 @@
 import axios from 'axios';
 
-// ===================== Axios 디버깅 코드 (나중에 제거) =====================
-console.log('🔍 === Axios 설정 디버깅 시작 ===');
-console.log('🔹 VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
-console.log('🔹 예상되는 API 요청 경로:', `${import.meta.env.VITE_API_BASE_URL || ''}/credit/usage-info`);
-console.log('🔍 === Axios 설정 디버깅 종료 ===');
-// =========================================================================
-
 // 기본 axios 인스턴스 생성
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
@@ -52,18 +45,6 @@ axiosInstance.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    
-    // ===================== 요청 디버깅 코드 (나중에 제거) =====================
-    // 전체 URL 로깅
-    const fullUrl = `${config.baseURL || ''}${config.url}`;
-    console.log(`🔶 API 요청: [${config.method?.toUpperCase()}] ${fullUrl}`);
-    console.log('🔹 요청 헤더:', config.headers);
-    console.log('🔹 토큰 존재 여부:', token ? '있음' : '없음');
-    // =========================================================================
-    
-    // 요청 로깅 (디버깅용)
-    console.log(`API 요청: [${config.method?.toUpperCase()}] ${config.url}`, config.params || {});
-    
     return config;
   },
   (error) => {
@@ -76,8 +57,6 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => {
     // 성공 응답 처리
-    console.log(`API 응답: [${response.status}] ${response.config.url}`, 
-      response.data ? { success: response.data.success } : {});
     return response;
   },
   (error) => {
@@ -96,7 +75,6 @@ axiosInstance.interceptors.response.use(
         // 로그인 페이지로 리다이렉트 - 단, 루프 방지
         const currentPath = window.location.pathname;
         if (currentPath !== '/' && currentPath !== '/login') {
-          console.log('[API] Redirecting to login page');
           setTimeout(() => {
             window.location.href = '/';
           }, 3000); // 3초 지연으로 사용자에게 알림 표시 시간 제공
