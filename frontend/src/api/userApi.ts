@@ -45,6 +45,7 @@ export const updateUserPhoto = async (photoIndex: number, photoData: string): Pr
     // 스웨거 문서에 해당 엔드포인트가 없으므로 프로필 수정 API로 대체
     // 실제로는 백엔드와 협의 필요
     const response = await axiosInstance.patch('/user/profile', { 
+      profileIndex: photoIndex,
       profileImages: [photoData] 
     });
     return response.data.success;

@@ -118,7 +118,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('소켓 오류:', error);
     });
 
-    socket.on('disconnect', (reason: string) => {
+    socket.on('disconnect', () => {
       setIsConnected(false);
     });
 
@@ -147,7 +147,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // 인증 정보(토큰, 유저ID)가 변경될 때마다 소켓 재연결
   useEffect(() => {
     if (token && userId) {
-      const socket = initSocket();
+      initSocket();
       setInitializationAttempted(true);
     } else {
       setInitializationAttempted(true);

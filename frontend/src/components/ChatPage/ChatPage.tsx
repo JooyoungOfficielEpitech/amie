@@ -183,7 +183,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
             socket.emit('join-room', currentRoomId);
         });
 
-        socket.on('disconnect', (reason: any) => {
+        socket.on('disconnect', () => {
             // Handle potential need for reconnection or error display
         });
 
@@ -198,7 +198,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
         });
 
         // 인증 결과 이벤트 리스너 추가
-        socket.on('authenticated', (response: any) => {
+        socket.on('authenticated', () => {
             // Authentication successful
         });
 
@@ -210,7 +210,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
         });
 
         // Listener for successful leave confirmation from backend
-        socket.on('chat_left', (data: { roomId: string }) => {
+        socket.on('chat_left', () => {
             // Navigate away after confirmation
             onNavigateToDashboard(); 
         });

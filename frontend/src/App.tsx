@@ -357,26 +357,6 @@ function App() {
     const token = localStorage.getItem('accessToken');
     
     if (token) {
-      try {
-        // Base64 디코딩으로 토큰 내용 확인
-        const tokenParts = token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(atob(tokenParts[1]));
-          
-          // 만료시간 확인
-          if (payload.exp) {
-            const expiryDate = new Date(payload.exp * 1000);
-            const now = new Date();
-            const isExpired = expiryDate < now;
-            // Token expiry handled silently
-          }
-        }
-      } catch (error) {
-        console.error('[App] Error decoding token:', error);
-      }
-    }
-    
-    if (token) {
       setIsLoggedIn(true);
       
       // 토큰이 있으면 localStorage에서 auto search 상태도 확인

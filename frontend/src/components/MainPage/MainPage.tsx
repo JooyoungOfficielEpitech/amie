@@ -95,7 +95,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             matchSocket.emit('check_match_status');
         };
 
-        const handleDisconnect = (reason: any) => {
+        const handleDisconnect = () => {
             // 연결이 끊겼을 때도 isMatching 상태 유지 (서버 재연결 시 다시 확인)
         };
 
@@ -115,7 +115,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             // 매칭 성공 시 크레딧 업데이트 - 필요한 경우만 실행
             
             // 크레딧 정보만 업데이트하고 전체 프로필 갱신은 스킵
-            fetchCredit().catch(err => {
+            fetchCredit().catch(() => {
                 // 오류 처리
             });
             
@@ -146,7 +146,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             setShowRippleAnimation(false);
             
             // 매칭 취소 시에도 크레딧 정보만 업데이트
-            fetchCredit().catch(err => {
+            fetchCredit().catch(() => {
                 // 오류 처리
             });
         };

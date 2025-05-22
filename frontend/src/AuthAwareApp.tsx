@@ -18,7 +18,7 @@ const AuthAwareApp: React.FC = () => {
         setIsVerifying(true);
         
         try {
-          const isValid = await verifyToken();
+          await verifyToken();
         } catch (error) {
           console.error('[AuthAwareApp] 토큰 검증 중 오류:', error);
         } finally {
