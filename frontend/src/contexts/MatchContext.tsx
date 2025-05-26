@@ -77,6 +77,13 @@ export const MatchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
+    // 매칭 취소 이벤트 처리
+    const handleMatchCancelled = () => {
+      setIsAutoMatchEnabled(false);
+      localStorage.removeItem('isAutoMatchEnabled');
+      setIsToggling(false);
+    };
+
     // 에러 처리
     const handleMatchError = (error: { message: string }) => {
       console.error('[MatchContext] Match error:', error.message);
@@ -92,6 +99,7 @@ export const MatchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 이벤트 리스너 등록
     matchSocket.on('toggle_match_result', handleToggleMatchResult);
     matchSocket.on('current_match_status', handleCurrentMatchStatus);
+    matchSocket.on('match_cancelled', handleMatchCancelled);
     matchSocket.on('match_error', handleMatchError);
     matchSocket.on('connect', handleConnect);
 
@@ -104,6 +112,7 @@ export const MatchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       matchSocket.off('toggle_match_result', handleToggleMatchResult);
       matchSocket.off('current_match_status', handleCurrentMatchStatus);
+      matchSocket.off('match_cancelled', handleMatchCancelled);
       matchSocket.off('match_error', handleMatchError);
       matchSocket.off('connect', handleConnect);
     };

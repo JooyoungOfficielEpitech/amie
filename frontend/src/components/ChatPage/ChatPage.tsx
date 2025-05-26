@@ -189,12 +189,26 @@ const ChatPage: React.FC<ChatPageProps> = ({
 
         socket.on('connect_error', (err: any) => {
             console.error('Chat socket connection error details:', err, err.message, err.data);
-            setError(`채팅 서버 연결 실패: ${err.message}`);
+            // 인증 관련 오류인 경우 로그아웃 처리
+            if (err.message.includes('인증') || err.message.includes('권한') || err.message.includes('찾을 수 없')) {
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('currentChatRoomId');
+                window.location.href = '/'; // 로그인 페이지로 강제 이동
+            } else {
+                setError(`채팅 서버 연결 실패: ${err.message}`);
+            }
         });
 
         socket.on('error', (errorData: { message: string }) => {
             console.error('Chat Error from server:', errorData);
-            setError(`채팅 오류: ${errorData.message}`);
+            // 인증 관련 오류인 경우 로그아웃 처리
+            if (errorData.message.includes('인증') || errorData.message.includes('권한') || errorData.message.includes('찾을 수 없')) {
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('currentChatRoomId');
+                window.location.href = '/'; // 로그인 페이지로 강제 이동
+            } else {
+                setError(`채팅 오류: ${errorData.message}`);
+            }
         });
 
         // 인증 결과 이벤트 리스너 추가

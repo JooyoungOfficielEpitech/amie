@@ -219,7 +219,13 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         // 매칭 취소 또는 시작
         if (isMatching) {
             setShowRippleAnimation(false);
+            setIsMatching(false); // 즉시 UI 상태 업데이트
             matchSocket.emit('cancel_match');
+            
+            // 매칭 취소 후 상태 확인
+            setTimeout(() => {
+                matchSocket.emit('check_match_status');
+            }, 500);
         } else {
             // 크레딧 확인
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
