@@ -7,6 +7,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+# 소스 코드 복사 전에 .env.production 복사
+COPY .env.production .env.production
+
 # 소스 코드 복사
 COPY . .
 
