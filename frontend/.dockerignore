@@ -25,10 +25,6 @@ Thumbs.db
 # Ignore test coverage
 coverage
 
-# Ignore environment files (if not needed in image)
-.env
-.env.*
-
 # Ignore misc
 *.tgz
 *.gz
