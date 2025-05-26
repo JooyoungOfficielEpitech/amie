@@ -33,7 +33,6 @@ function App() {
     const savedState = localStorage.getItem('isAutoSearchEnabled');
     return savedState === 'true';
   });
-  const [shouldStartMatching, setShouldStartMatching] = useState<boolean>(false);
 
   // isAutoSearchEnabled 변경될 때마다 로그 출력 및 localStorage에 저장
   useEffect(() => {
@@ -273,7 +272,6 @@ function App() {
                           <MainPage 
                             onLogout={handleLogout} 
                             onCreditUpdate={fetchUserProfile}
-                            shouldStartMatching={shouldStartMatching}
                           />
                         } />
                         <Route path="/chat/:roomId" element={

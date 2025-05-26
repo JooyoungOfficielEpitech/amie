@@ -5,7 +5,7 @@ import ChatWindow from './ChatWindow';
 import ProfileCard from './ProfileCard';
 import styles from './ChatPage.module.css';
 import { chatApi } from '../../api'; // <-- Import chatApi
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Modal from '../common/Modal';
 
 // 환경에 맞는 소켓 베이스 URL을 반환하는 함수 (SocketContext와 동일한 로직)
@@ -42,7 +42,6 @@ interface ChatPageProps {
 const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate }) => {
     const { roomId } = useParams<{ roomId: string }>();
     const navigate = useNavigate();
-    const location = useLocation();
     const [chatSocket, setChatSocket] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
     const currentRoomId = roomId || '';

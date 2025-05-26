@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styles from './Settings.module.css';
 import Sidebar from '../MainPage/Sidebar';
 import * as AppStrings from '../../constants/strings';
@@ -15,33 +15,13 @@ const Settings: React.FC<SettingsProps> = ({ onLogout, currentView, currentChatR
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [matchedRoomId, setMatchedRoomId] = useState<string | null>(currentChatRoomId || null);
-
-    // 사용자 프로필 정보 로드하여 매칭된 채팅방이 있는지 확인
-    useEffect(() => {
-        if (!currentChatRoomId) {
-            const fetchProfile = async () => {
-                try {
-                    const response = await userApi.getProfile();
-                    if (response.success && response.user && response.user.matchedRoomId) {
-                        setMatchedRoomId(response.user.matchedRoomId);
-                    }
-                } catch (err) {
-                    console.error("Error fetching profile in Settings:", err);
-                }
-            };
-            
-            fetchProfile();
-        }
-    }, [currentChatRoomId]);
 
     const handleDeleteAccountClick = () => {
         setError(null);
         setIsConfirmModalOpen(true);
     };
 
-    // 채팅방으로 이동하는 함수
-    const navigateToChat = (roomId: string) => {
+    (roomId: string) => {
         window.location.href = `/chat/${roomId}`;
     };
 

@@ -271,11 +271,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             }
         }
     }, [profile, matchedRoomId, isLoadingProfile, matchSocket, contextCredit, shouldStartMatching, isMatching, isWaiting]);
-    
-    // Original dashboard navigation handler (if needed elsewhere, otherwise remove)
-    const handleNavigateToDashboard = () => {
-        // 필요한 경우 로직 추가
-    };
 
     // 버튼 상태 관련 memoized 값들
     const buttonText = useMemo(() => 
