@@ -230,18 +230,16 @@ function App() {
       localStorage.removeItem('currentChatRoomId');
       setCurrentChatRoomId(null);
       
-      // 채팅방에서 나올 때는 브라우저 새로고침
-      if (leavingChatRoom) {
-        window.location.reload();
-        return;
-      }
-      
       // 남성 사용자이고, 채팅방에서 나왔으며, auto search가 활성화된 경우 자동으로 매칭 시작
       if (leavingChatRoom && isAutoSearchEnabled && currentUserProfile?.gender === 'male') {
         // 매칭 상태를 localStorage에 저장하여 MainPage에서 감지할 수 있도록 함
         localStorage.setItem('autoStartMatching', 'true');
         // 즉시 매칭 시작 상태로 설정 (MainPage 컴포넌트에 전달될 prop)
         setShouldStartMatching(true);
+      }
+
+      if (leavingChatRoom) {
+        window.location.reload();
       }
       
       setActiveView('dashboard');
