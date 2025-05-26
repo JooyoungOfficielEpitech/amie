@@ -1,6 +1,7 @@
 import express from 'express';
 import { RequestHandler } from 'express-serve-static-core';
 import { getMyChatRooms, getChatRoomMessages, sendMessage, getChatRoomStatus, getChatRoomHistory } from '../controllers/chatController';
+import { getMessages } from '../controllers/messageController';
 import { protect } from '../middleware/userAuthMiddleware';
 
 const router = express.Router();
@@ -109,7 +110,7 @@ router.get('/rooms', getMyChatRooms as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/room/:roomId', getChatRoomMessages as unknown as RequestHandler);
+router.get('/room/:roomId', getMessages as unknown as RequestHandler);
 
 /**
  * @swagger

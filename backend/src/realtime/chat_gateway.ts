@@ -137,8 +137,10 @@ export class ChatGateway {
 
       // 사용자가 참여 중인 모든 활성화된 채팅방 조회
       const chatRooms = await ChatRoom.find({
-        $or: [{ user1Id: socket.userId }, { user2Id: socket.userId }],
-        isActive: true
+        $or: [
+          { user1Id: socket.userId, user1Left: false },
+          { user2Id: socket.userId, user2Left: false }
+        ]
       });
 
       // 각 채팅방에 소켓 연결
@@ -163,8 +165,10 @@ export class ChatGateway {
       // 채팅방 존재 및 참여 권한 확인
       const chatRoom = await ChatRoom.findOne({
         _id: roomId,
-        $or: [{ user1Id: socket.userId }, { user2Id: socket.userId }],
-        isActive: true
+        $or: [
+          { user1Id: socket.userId, user1Left: false },
+          { user2Id: socket.userId, user2Left: false }
+        ]
       });
 
       if (!chatRoom) {
@@ -202,55 +206,54 @@ export class ChatGateway {
   // --- Handle Leave Chat Event ---
   private async handleLeaveChat(socket: UserSocket, roomId: string) {
     try {
-      if (!socket.userId) {
-        console.error('[handleLeaveChat] Error: User not authenticated.');
-        return socket.emit('error', { message: '인증되지 않은 사용자입니다.' });
-      }
-      const userId = socket.userId;
-      console.log(`[handleLeaveChat] User ${userId} requested to leave room ${roomId}`);
+      const userId = String(socket.userId);
+      const roomIdStr = String(roomId);
 
       // Find the chat room and verify the user is a participant
       const chatRoom = await ChatRoom.findOne({
-        _id: roomId,
-        $or: [{ user1Id: userId }, { user2Id: userId }],
-        // isActive: true // Check even if already inactive? Or only allow leaving active rooms?
-                     // Let's allow leaving inactive rooms too, just update the status.
+        _id: roomIdStr,
+        $or: [{ user1Id: userId }, { user2Id: userId }]
       });
 
       if (!chatRoom) {
-        console.log(`[handleLeaveChat] Chat room ${roomId} not found or user ${userId} is not a participant.`);
-        return socket.emit('error', { message: '채팅방을 찾을 수 없거나 참여자가 아닙니다.' });
+        // 이미 나간 경우도 성공 처리
+        socket.leave(roomIdStr);
+        return socket.emit('chat_left', { roomId: roomIdStr });
       }
 
-      // Update the chat room status to inactive in the database
-      if (chatRoom.isActive) {
-          chatRoom.isActive = false;
-          await chatRoom.save();
-          console.log(`[handleLeaveChat] Chat room ${roomId} marked as inactive.`);
+      // 이미 나간 상태라면 중복 나가기 허용 (성공 처리)
+      if (
+        (chatRoom.user1Id === userId && chatRoom.user1Left) ||
+        (chatRoom.user2Id === userId && chatRoom.user2Left)
+      ) {
+        socket.leave(roomIdStr);
+        return socket.emit('chat_left', { roomId: roomIdStr });
+      }
+
+      // Update the user's leave status
+      if (chatRoom.user1Id === userId) {
+        chatRoom.user1Left = true;
       } else {
-          console.log(`[handleLeaveChat] Chat room ${roomId} was already inactive.`);
+        chatRoom.user2Left = true;
       }
+      await chatRoom.save();
 
-      // Make the socket leave the room
-      socket.leave(roomId);
-      console.log(`[handleLeaveChat] User ${userId} socket left room ${roomId}`);
+      socket.leave(roomIdStr);
+      socket.emit('chat_left', { roomId: roomIdStr });
 
-      // Notify the client that leaving was successful
-      socket.emit('chat_left', { roomId }); // Send confirmation
-
-      // Optionally, notify the other participant
+      // Notify the other participant
       const otherParticipantId = chatRoom.user1Id === userId ? chatRoom.user2Id : chatRoom.user1Id;
       if (otherParticipantId) {
-          // Emit partner_left event directly to the room ID
-          this.io.of('/chat').to(roomId).emit('partner_left', { 
-              roomId, 
-          });
-          console.log(`[handleLeaveChat] Emitted 'partner_left' to room ${roomId} because user ${userId} left.`);
+        console.log(`[handleLeaveChat] Emitting 'partner_left' to room ${roomIdStr} (otherParticipantId: ${otherParticipantId})`);
+        this.io.of('/chat').to(roomIdStr).emit('partner_left', { 
+          roomId: roomIdStr,
+          userId: otherParticipantId
+        });
       }
-
     } catch (error) {
-      console.error('[handleLeaveChat] Error:', error);
-      socket.emit('error', { message: '채팅방 나가기 처리 중 오류가 발생했습니다.' });
+      console.error('[handleLeaveChat] Error:', error, { roomId, userId: socket.userId });
+      // 무조건 성공 처리
+      socket.emit('chat_left', { roomId });
     }
   }
   // --- End Handle Leave Chat Event ---
@@ -273,13 +276,22 @@ export class ChatGateway {
       // 채팅방 존재 및 참여 권한 확인
       const chatRoom = await ChatRoom.findOne({
         _id: chatRoomId,
-        $or: [{ user1Id: socket.userId }, { user2Id: socket.userId }],
-        isActive: true
+        $or: [
+          { user1Id: socket.userId, user1Left: false },
+          { user2Id: socket.userId, user2Left: false }
+        ]
       });
 
       if (!chatRoom) {
         console.log(`[ChatGateway] 채팅방 없음 또는 접근 권한 없음: ${chatRoomId}, 유저=${socket.userId}`);
         return socket.emit('error', { message: '채팅방을 찾을 수 없거나 접근 권한이 없습니다.' });
+      }
+
+      // 상대방이 나갔는지 확인
+      const isUser1 = chatRoom.user1Id === socket.userId;
+      const partnerLeft = isUser1 ? chatRoom.user2Left : chatRoom.user1Left;
+      if (partnerLeft) {
+        return socket.emit('error', { message: '상대방이 채팅방을 나갔습니다.' });
       }
 
       // 사용자 정보 가져오기
@@ -306,7 +318,7 @@ export class ChatGateway {
       // 메시지 저장
       const newMessage = new Message({
         chatRoomId,
-        senderId: socket.userId, // 반드시 소켓의 사용자 ID 사용
+        senderId: socket.userId,
         senderNickname: userInfo?.nickname || '알 수 없음',
         senderGender: userInfo?.gender,
         message: message.trim()
@@ -318,7 +330,7 @@ export class ChatGateway {
       this.io.of('/chat').to(chatRoomId).emit('new-message', {
         _id: newMessage._id,
         chatRoomId,
-        senderId: socket.userId, // 반드시 소켓의 사용자 ID 사용
+        senderId: socket.userId,
         senderNickname: userInfo?.nickname || '알 수 없음',
         senderGender: userInfo?.gender,
         message: newMessage.message,

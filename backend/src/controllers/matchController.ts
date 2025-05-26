@@ -89,8 +89,10 @@ export const checkMatchStatus = async (req: Request, res: Response) => {
       console.log(`[matchController] 활성화된 채팅방 검색: userId=${userId}`);
       
       const chatRoom = await ChatRoom.findOne({
-        $or: [{ user1Id: userId }, { user2Id: userId }],
-        isActive: true,
+        $or: [
+          { user1Id: userId, user1Left: false },
+          { user2Id: userId, user2Left: false }
+        ]
       }).sort({ updatedAt: -1 });
 
       if (!chatRoom) {

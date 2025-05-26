@@ -1,43 +1,36 @@
 import React from 'react';
 import styles from './Sidebar.module.css';
 import { FaHeart, FaUser, FaCog, FaSignOutAlt } from 'react-icons/fa'; // Example icons
+import { useNavigate } from 'react-router-dom';
 
 // Define props
 interface SidebarProps {
     onLogout: () => void;
-    onNavigateToDashboard: () => void;
-    onNavigateToMyProfile: () => void;
-    onNavigateToSettings: () => void; // Add prop for Settings navigation
-    currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
+    currentView?: 'dashboard' | 'chat' | 'my-profile' | 'settings';
     matchedRoomId: string | null; // Add matched room ID
-    onNavigateToChat: (roomId: string) => void; // Add callback to navigate to chat
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
     onLogout, 
-    onNavigateToDashboard, 
-    onNavigateToMyProfile, 
-    onNavigateToSettings, 
     currentView,
-    matchedRoomId,
-    onNavigateToChat
+    matchedRoomId
 }) => {
+    const navigate = useNavigate();
+
     const handleItemClick = (item: string) => {
         switch (item) {
             case 'Match':
-                // If already matched, go to chat room directly
                 if (matchedRoomId) {
-                    onNavigateToChat(matchedRoomId);
+                    navigate(`/chat/${matchedRoomId}`);
                 } else {
-                    // Otherwise go to match dashboard
-                    onNavigateToDashboard();
+                    navigate('/');
                 }
                 break;
             case 'Profile':
-                onNavigateToMyProfile();
+                navigate('/my-profile');
                 break;
             case 'Settings':
-                onNavigateToSettings(); // Call the new function
+                navigate('/settings');
                 break;
             case 'Log out':
                 onLogout();

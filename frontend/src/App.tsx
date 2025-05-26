@@ -12,6 +12,7 @@ import Header from './components/MainPage/Header';
 import { CreditProvider } from './contexts/CreditContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { PaymentProvider } from './contexts/PaymentContext';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Define type for social signup initial data
 interface InitialSocialData {
@@ -21,20 +22,18 @@ interface InitialSocialData {
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [activeView, setActiveView] = useState<'dashboard' | 'chat' | 'my-profile' | 'settings'>('dashboard');
   const [showSignupFlow, setShowSignupFlow] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  // State to hold initial data for social signup
   const [socialSignupData, setSocialSignupData] = useState<InitialSocialData | null>(null);
-  const [currentChatRoomId, setCurrentChatRoomId] = useState<string | null>(null); // State for current room ID
-  const [userCredit, setUserCredit] = useState<number | null>(null); // Add state for user credit
+  const [currentChatRoomId, setCurrentChatRoomId] = useState<string | null>(null);
+  const [userCredit, setUserCredit] = useState<number | null>(null);
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
-  // Auto search 기능을 위한 상태 추가 - localStorage에서 초기값 가져오기
   const [isAutoSearchEnabled, setIsAutoSearchEnabled] = useState<boolean>(() => {
     const savedState = localStorage.getItem('isAutoSearchEnabled');
     return savedState === 'true';
   });
+  const [shouldStartMatching, setShouldStartMatching] = useState<boolean>(false);
 
   // isAutoSearchEnabled 변경될 때마다 로그 출력 및 localStorage에 저장
   useEffect(() => {
@@ -64,26 +63,39 @@ function App() {
       }
   }, []); // Keep empty dependency array
 
+  // isAutoSearchEnabled 변경될 때마다 로그 출력 및 localStorage에 저장
+  useEffect(() => {
+    // 앱 시작 시 access_token 남아있으면 삭제
+    localStorage.removeItem('access_token');
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      setIsLoggedIn(true);
+    } else {
+      setIsLoggedIn(false);
+      setUserCredit(null);
+      localStorage.removeItem('currentChatRoomId');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchUserProfile();
+    }
+  }, [isLoggedIn]);
+
   // Function to handle successful login - Wrapped in useCallback
   const handleLoginSuccess = useCallback((token?: string) => {
-    // 명시적으로 토큰을 accessToken으로 저장 (중복 작업이지만 안전성 확보)
     if (token) {
       localStorage.setItem('accessToken', token);
+      localStorage.removeItem('access_token');
+      setIsLoggedIn(true);
+      fetchUserProfile(); // 즉시 호출
     }
-    
-    setIsLoggedIn(true);
-    setActiveView('dashboard'); 
-    setShowSignupFlow(false); 
-    
+    setShowSignupFlow(false);
     // 로그인 성공 시 localStorage에서 auto search 상태 명시적으로 가져오기
     const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
     setIsAutoSearchEnabled(savedAutoSearchState === 'true');
-    
-    // fetchUserProfile은 useEffect에서 호출되지만, 지연 발생 가능성이 있어서 명시적으로 다시 호출
-    setTimeout(() => {
-      fetchUserProfile(); // 상태 업데이트 후 프로필 정보 명시적으로 다시 가져오기
-    }, 300);
-  }, [fetchUserProfile]); // fetchUserProfile 의존성 추가
+  }, [fetchUserProfile]);
 
   // Function to handle starting the NORMAL signup process
   const handleStartSignup = () => {
@@ -164,7 +176,8 @@ function App() {
               // Social signup might return token directly, normal signup might not
               if (response.token) {
                  localStorage.setItem('accessToken', response.token);
-                 handleLoginSuccess(); // Use existing login success handler
+                 localStorage.removeItem('access_token');
+                 handleLoginSuccess();
                  
                  // 잠시 후 크레딧 정보를 명시적으로 다시 가져오기
                  setTimeout(async () => {
@@ -173,7 +186,6 @@ function App() {
               } else {
                  alert("회원가입 성공! 다시 로그인해주세요.");
                  setIsLoggedIn(false); // Ensure user is logged out
-                 setActiveView('dashboard'); // Go back to login view
               }
           } else {
               throw new Error(response.message || (socialSignupData ? "소셜 회원가입 실패" : "회원가입 실패"));
@@ -199,222 +211,39 @@ function App() {
 
   // Function to handle logout
   const handleLogout = () => {
-      localStorage.removeItem('accessToken'); // Ensure token is removed on logout
-      localStorage.removeItem('currentChatRoomId'); // 로그아웃 시 채팅방 ID 제거
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('currentChatRoomId');
       setIsLoggedIn(false);
       setShowSignupFlow(false); 
       setCurrentChatRoomId(null); 
       setUserCredit(null); // Clear credit on logout
-      setActiveView('dashboard'); 
   };
 
-  // Navigation functions
-  const navigateToChat = (roomId: string) => { 
-      if (isLoggedIn) {
-          // 채팅방 ID를 localStorage에 저장
-          localStorage.setItem('currentChatRoomId', roomId);
-          setCurrentChatRoomId(roomId); 
-          setActiveView('chat');
-      }
-  };
-
-  // 자동 매칭 상태를 위한 상태 변수 추가
-  const [shouldStartMatching, setShouldStartMatching] = useState<boolean>(false);
-
-  const navigateToDashboard = () => {
-    if (isLoggedIn) {
-      // 채팅방에서 나올 때 (currentChatRoomId가 있는 상태에서 dashboard로 이동할 때)
-      const leavingChatRoom = !!currentChatRoomId;
-      
-      // 메인 페이지로 이동할 때 localStorage에서 채팅방 ID 제거
-      localStorage.removeItem('currentChatRoomId');
-      setCurrentChatRoomId(null);
-      
-      // 남성 사용자이고, 채팅방에서 나왔으며, auto search가 활성화된 경우 자동으로 매칭 시작
-      if (leavingChatRoom && isAutoSearchEnabled && currentUserProfile?.gender === 'male') {
-        // 매칭 상태를 localStorage에 저장하여 MainPage에서 감지할 수 있도록 함
-        localStorage.setItem('autoStartMatching', 'true');
-        // 즉시 매칭 시작 상태로 설정 (MainPage 컴포넌트에 전달될 prop)
-        setShouldStartMatching(true);
-      }
-
-      if (leavingChatRoom) {
-        window.location.reload();
-      }
-      
-      setActiveView('dashboard');
-    }
-  };
-
-  const navigateToMyProfile = () => {
-      if (isLoggedIn) {
-           setCurrentChatRoomId(null); 
-           setActiveView('my-profile');
-      }
-  };
-
-  const navigateToSettings = () => {
-      if (isLoggedIn) {
-           setCurrentChatRoomId(null); 
-           setActiveView('settings');
-      }
-  };
-
-  // Helper function to render the active component
-  const renderActiveView = () => {
-      // Derive userId directly from the LATEST state value within the render function
-      const userId = currentUserProfile?.id; 
-
-      // Simplified check: If logged in, but userId is still not available (falsy), show loading.
-      if (isLoggedIn && !userId) { 
-          return <div>Loading user data...</div>; 
-      }
-      
-      // If not logged in, the main return block will handle rendering Login component.
-      // So if we reach here, isLoggedIn is true AND userId is valid.
-
-      switch (activeView) {
-          case 'dashboard':
-              return <MainPage 
-                          onLogout={handleLogout} 
-                          onNavigateToChat={navigateToChat} 
-                          onNavigateToMyProfile={navigateToMyProfile}
-                          onNavigateToSettings={navigateToSettings}
-                          currentView={activeView}
-                          onCreditUpdate={fetchUserProfile} // Pass the profile fetch function
-                          shouldStartMatching={shouldStartMatching}
-                      />;
-          case 'chat':
-              if (!currentChatRoomId) {
-                   console.error("Attempted to render ChatPage without a roomId!");
-                   navigateToDashboard(); 
-                   return null; 
-              }
-              // Add an explicit check for userId before rendering ChatPage
-              if (!userId) {
-                  console.error("Attempted to render ChatPage without a valid userId!");
-                  // Optionally show loading or navigate away
-                  return <div>Loading user data...</div>; // Or navigateToDashboard();
-              }
-              // ChatPage 진입 시 shouldStartMatching 상태 초기화
-              if (shouldStartMatching) {
-                  setShouldStartMatching(false);
-              }
-              // Now userId is guaranteed to be a string here
-              return <ChatPage 
-                          onLogout={handleLogout} 
-                          onNavigateToDashboard={navigateToDashboard} 
-                          onNavigateToMyProfile={navigateToMyProfile}
-                          onNavigateToSettings={navigateToSettings}
-                          currentView={activeView}
-                          roomId={currentChatRoomId} 
-                          userId={userId} // Now guaranteed to be a string
-                          onCreditUpdate={fetchUserProfile} // 크레딧 업데이트 함수 추가
-                      />;
-          case 'my-profile':
-              // MyProfile 진입 시 shouldStartMatching 상태 초기화
-              if (shouldStartMatching) {
-                  setShouldStartMatching(false);
-              }
-              // No need to re-check userId here
-              return <MyProfile 
-                          onNavigateToDashboard={navigateToDashboard}
-                          onLogout={handleLogout}
-                          onNavigateToMyProfile={navigateToMyProfile}
-                          onNavigateToSettings={navigateToSettings}
-                          currentView={activeView}
-                          currentChatRoomId={currentChatRoomId}
-                          onNavigateToChat={navigateToChat}
-                      />; 
-          case 'settings':
-               // Settings 진입 시 shouldStartMatching 상태 초기화
-               if (shouldStartMatching) {
-                   setShouldStartMatching(false);
-               }
-               // No need to re-check userId here
-              return <Settings 
-                          onNavigateToDashboard={navigateToDashboard}
-                          onLogout={handleLogout}
-                          onNavigateToMyProfile={navigateToMyProfile}
-                          onNavigateToSettings={navigateToSettings}
-                          currentView={activeView}
-                          currentChatRoomId={currentChatRoomId}
-                          onNavigateToChat={navigateToChat}
-                      />;
-          default:
-              // Fallback to dashboard if view is unknown, assuming profile loaded if logged in
-              return <MainPage 
-                          onLogout={handleLogout} 
-                          onNavigateToChat={navigateToChat} 
-                          onNavigateToMyProfile={navigateToMyProfile} 
-                          onNavigateToSettings={navigateToSettings}
-                          currentView={activeView}
-                          onCreditUpdate={fetchUserProfile}
-                          shouldStartMatching={shouldStartMatching} 
-                       />;
-      }
-  };
-
-  // Use useEffect to check token and set initial login state
-  useEffect(() => {
-    // Check if token exists in localStorage (using accessToken as standard)
-    const token = localStorage.getItem('accessToken');
-    
-    if (token) {
-      setIsLoggedIn(true);
-      
-      // 토큰이 있으면 localStorage에서 auto search 상태도 확인
-      const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
-      if (savedAutoSearchState !== null) {
-        setIsAutoSearchEnabled(savedAutoSearchState === 'true');
-      }
-      
-      // 저장된 채팅방 ID가 있는지 확인
-      const savedRoomId = localStorage.getItem('currentChatRoomId');
-      if (savedRoomId) {
-        setCurrentChatRoomId(savedRoomId);
-        setActiveView('chat');
-      }
-    } else {
-      setIsLoggedIn(false);
-      setUserCredit(null); // Ensure credit is null if not logged in initially
-      // 로그아웃 시 채팅방 ID 정보 제거
-      localStorage.removeItem('currentChatRoomId');
-    }
-  }, []);
-
-  // Use a separate useEffect to fetch credit *after* isLoggedIn is confirmed true
-  useEffect(() => {
-      if (isLoggedIn) {
-          fetchUserProfile(); 
-          
-          // 로그인 상태가 되면 localStorage에서 auto search 상태 다시 확인
-          const savedAutoSearchState = localStorage.getItem('isAutoSearchEnabled');
-          if (savedAutoSearchState !== null) {
-              setIsAutoSearchEnabled(savedAutoSearchState === 'true');
-          }
-      }
-  }, [isLoggedIn]); // Run whenever isLoggedIn changes
-
-  // 렌더링 전에 헤더에 표시할 컴포넌트
-  const renderHeader = () => {
-    if (!isLoggedIn) return null;
-    
-    return (
-      <Header 
-        creditBalance={userCredit} 
-        onRefetchCredit={fetchUserProfile}
-        userGender={currentUserProfile?.gender} // 성별 정보 전달
-        isAutoSearchEnabled={isAutoSearchEnabled} // Auto search 상태 전달
-        onAutoSearchChange={handleAutoSearchChange} // Auto search 변경 핸들러 전달
-      />
-    );
-  };
-  
   // Auto search 상태 변경 핸들러
   const handleAutoSearchChange = (enabled: boolean) => {
     setIsAutoSearchEnabled(enabled);
   };
+
+  // 렌더링 전에 헤더에 표시할 컴포넌트
+  const renderHeader = () => {
+    if (!isLoggedIn) return null;
+    if (!currentUserProfile) return <div style={{height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>로딩 중...</div>;
+    return (
+      <Header
+        creditBalance={userCredit}
+        userGender={currentUserProfile.gender}
+        isAutoSearchEnabled={isAutoSearchEnabled}
+        onAutoSearchChange={handleAutoSearchChange}
+      />
+    );
+  };
+
+  useEffect(() => {
+    if (currentUserProfile) {
+      localStorage.setItem('currentUserProfile', JSON.stringify(currentUserProfile));
+    }
+  }, [currentUserProfile]);
 
   return (
     <div className="app">
@@ -430,27 +259,51 @@ function App() {
                   />
                 </div>
               : (
-                // New container for logged-in view (Header + Main Content)
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100vh',
-                  overflow: 'hidden' // Prevent this container from scrolling
-                }}>
-                  {/* Pass userCredit and fetchUserProfile to Header */}
-                  {renderHeader()}
-                  {/* Container for the actual page content (MainPage, ChatPage, etc.) */}
+                <Router>
                   <div style={{
-                    flexGrow: 1, // Take remaining vertical space
-                    overflow: 'hidden' // Prevent content area from causing outer scroll
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100vh',
+                    overflow: 'hidden'
                   }}>
-                    {renderActiveView()} // Call renderActiveView for the main content
+                    {renderHeader()}
+                    <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+                      <Routes>
+                        <Route path="/" element={
+                          <MainPage 
+                            onLogout={handleLogout} 
+                            onCreditUpdate={fetchUserProfile}
+                            shouldStartMatching={shouldStartMatching}
+                          />
+                        } />
+                        <Route path="/chat/:roomId" element={
+                          <ChatPage 
+                            onLogout={handleLogout} 
+                            userId={currentUserProfile?.id || ''}
+                            onCreditUpdate={fetchUserProfile}
+                          />
+                        } />
+                        <Route path="/my-profile" element={
+                          <MyProfile 
+                            onLogout={handleLogout}
+                            currentView={'my-profile'}
+                            currentChatRoomId={currentChatRoomId}
+                          />
+                        } />
+                        <Route path="/settings" element={
+                          <Settings 
+                            onLogout={handleLogout}
+                            currentView={'settings'}
+                            currentChatRoomId={currentChatRoomId}
+                          />
+                        } />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                      </Routes>
+                    </div>
                   </div>
-                </div>
+                </Router>
               )
             }
-            
-            {/* 회원가입 플로우 오버레이 */}
             {showSignupFlow && (
                 <SignupFlow 
                     isOpen={true}
@@ -459,11 +312,7 @@ function App() {
                     initialSocialData={socialSignupData} 
                 />
             )}
-
-            {/* Optional: Display Loading Indicator */}
             {isLoading && <div className="loading-overlay">처리 중...</div>}
-
-            {/* Optional: Display Error Message */}
             {error && <div className="error-message">오류: {error}</div>}
           </PaymentProvider>
         </CreditProvider>

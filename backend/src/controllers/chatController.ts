@@ -8,11 +8,11 @@ export const getMyChatRooms = async (req: Request, res: Response) => {
   try {
     const user = req.user;
 
-    // 활성화된 채팅방 중 사용자가 참여하고 있는 채팅방만 조회
+    // 사용자가 나가지 않은 채팅방만 조회
     const chatRooms = await ChatRoom.find({
       $or: [
-        { user1Id: user._id, isActive: true },
-        { user2Id: user._id, isActive: true }
+        { user1Id: user._id, user1Left: false },
+        { user2Id: user._id, user2Left: false }
       ]
     }).sort({ updatedAt: -1 }); // 최신 업데이트 순으로 정렬
 
@@ -167,7 +167,7 @@ export const sendMessage = async (req: Request, res: Response) => {
 export const getChatRoomStatus = async (req: Request, res: Response) => {
     try {
         const roomId = req.params.roomId;
-        const userId = req.user?._id; // Get user ID from authenticated request
+        const userId = req.user?._id;
 
         if (!userId) {
             return res.status(401).json({ success: false, error: '인증되지 않은 사용자입니다.' });
@@ -181,12 +181,23 @@ export const getChatRoomStatus = async (req: Request, res: Response) => {
 
         // Check if the requesting user is part of this chat room
         if (chatRoom.user1Id !== userId && chatRoom.user2Id !== userId) {
-             return res.status(403).json({ success: false, error: '채팅방 접근 권한이 없습니다.' });
+            return res.status(403).json({ success: false, error: '채팅방 접근 권한이 없습니다.' });
         }
 
+        // Check if the user has left the room
+        const isUser1 = chatRoom.user1Id === userId;
+        const iLeft = isUser1 ? chatRoom.user1Left : chatRoom.user2Left;
+        if (iLeft) {
+            return res.status(403).json({ success: false, error: '이미 나간 채팅방입니다.' });
+        }
+
+        // 상대방이 나간 경우는 접근 허용, 상태만 내려줌
         res.json({ 
             success: true, 
-            isActive: chatRoom.isActive 
+            user1Left: chatRoom.user1Left,
+            user2Left: chatRoom.user2Left,
+            user1Id: chatRoom.user1Id,
+            user2Id: chatRoom.user2Id
         });
 
     } catch (error) {

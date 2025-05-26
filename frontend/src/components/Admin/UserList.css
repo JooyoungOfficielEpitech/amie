@@ -1,0 +1,59 @@
+.user-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.user-table {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #495057;
+}
+
+.status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-badge.대기열-밖 {
+  background-color: #e9ecef;
+  color: #495057;
+}
+
+.status-badge.대기열-안 {
+  background-color: #cff4fc;
+  color: #055160;
+}
+
+.status-badge.매칭-됨 {
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+.detail-link {
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+.detail-link:hover {
+  text-decoration: underline;
+} 

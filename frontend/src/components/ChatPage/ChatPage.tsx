@@ -5,6 +5,8 @@ import ChatWindow from './ChatWindow';
 import ProfileCard from './ProfileCard';
 import styles from './ChatPage.module.css';
 import { chatApi } from '../../api'; // <-- Import chatApi
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import Modal from '../common/Modal';
 
 // 환경에 맞는 소켓 베이스 URL을 반환하는 함수 (SocketContext와 동일한 로직)
 const getSocketBaseUrl = () => {
@@ -32,54 +34,51 @@ interface ChatMessage {
 }
 
 interface ChatPageProps {
-    onNavigateToDashboard: () => void; // Function to navigate back
-    onLogout: () => void; // Function for logout
-    onNavigateToMyProfile: () => void; // Add new prop type
-    onNavigateToSettings: () => void; // Add prop type
-    currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings'; // Add prop type
-    roomId: string; // Changed from optional to required based on App.tsx logic
-    userId: string; // Add userId prop from App.tsx
-    onCreditUpdate?: () => Promise<void>; // 크레딧 업데이트 함수 추가
+    onLogout: () => void;
+    userId: string;
+    onCreditUpdate?: () => Promise<void>;
 }
 
-const ChatPage: React.FC<ChatPageProps> = ({ 
-    onNavigateToDashboard, 
-    onLogout, 
-    onNavigateToMyProfile, 
-    onNavigateToSettings, 
-    currentView, 
-    roomId: initialRoomId, // Keep receiving roomId
-    userId, // Receive userId from props
-    onCreditUpdate // 크레딧 업데이트 함수 추가
-}) => {
+const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate }) => {
+    const { roomId } = useParams<{ roomId: string }>();
+    const navigate = useNavigate();
+    const location = useLocation();
     const [chatSocket, setChatSocket] = useState<any | null>(null);
     const [error, setError] = useState<string | null>(null);
-    // Use roomId directly from props now, assuming App.tsx ensures it's valid
-    const currentRoomId = initialRoomId; 
+    const currentRoomId = roomId || '';
     const [messages, setMessages] = useState<ChatMessage[]>([]); // State for messages
     const [isPartnerLeft, setIsPartnerLeft] = useState(false); // <-- 상대방 나감 상태 추가
     const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true); // <-- Add loading state
+    const [showNoAccessModal, setShowNoAccessModal] = useState(false);
+    const [noAccessMessage, setNoAccessMessage] = useState('');
+
+    // Helper to check if auto search should be enabled
+    const isMaleAutoSearch = () => {
+        const profileStr = localStorage.getItem('currentUserProfile');
+        let gender = '';
+        let isAuto = false;
+        try {
+            if (profileStr) {
+                const profile = JSON.parse(profileStr);
+                gender = profile.gender;
+            }
+        } catch {}
+        isAuto = localStorage.getItem('isAutoSearchEnabled') === 'true';
+        return gender === 'male' && isAuto;
+    };
 
     // 채팅방 ID가 없는 경우 처리
     useEffect(() => {
-        if (!initialRoomId) {
-            console.error('[ChatPage] No room ID provided in props');
-            
-            // localStorage에서 채팅방 ID 확인
-            const savedRoomId = localStorage.getItem('currentChatRoomId');
-            if (savedRoomId) {
-                // 현재는 상태를 직접 변경할 수 없으므로 dashboard로 이동
-                // 이후 App.tsx의 효과에서 chat으로 다시 이동될 것임
-                onNavigateToDashboard();
-            } else {
-                console.error('[ChatPage] No room ID available, navigating to dashboard');
-                onNavigateToDashboard();
+        if (!roomId) {
+            if (isMaleAutoSearch()) {
+                localStorage.setItem('autoStartMatching', 'true');
             }
+            navigate('/');
+            return;
         } else {
-            // 채팅방 ID가 있는 경우에는 localStorage에 저장
-            localStorage.setItem('currentChatRoomId', initialRoomId);
+            localStorage.setItem('currentChatRoomId', roomId);
         }
-    }, [initialRoomId, onNavigateToDashboard]);
+    }, [roomId, navigate]);
 
     // --- Fetch initial chat history --- 
     useEffect(() => {
@@ -110,12 +109,31 @@ const ChatPage: React.FC<ChatPageProps> = ({
     }, [currentRoomId]); // Run when roomId is available
     // --- End Fetch initial chat history --- 
 
+    // --- Fetch partner left state on mount/refresh ---
+    useEffect(() => {
+        const fetchPartnerLeft = async () => {
+            if (!currentRoomId || !userId) return;
+            try {
+                const data = await chatApi.getChatRoomStatus(currentRoomId);
+                if (data.success && (typeof data.user1Left === 'boolean') && (typeof data.user2Left === 'boolean')) {
+                    // user1Id, user2Id가 응답에 포함되어 있다고 가정
+                    const isUser1 = data.user1Id === userId;
+                    const partnerLeft = isUser1 ? data.user2Left : data.user1Left;
+                    setIsPartnerLeft(partnerLeft);
+                }
+            } catch (e) {
+                // 무시 (네트워크 오류 등)
+            }
+        };
+        fetchPartnerLeft();
+    }, [currentRoomId, userId]);
+
     // WebSocket connection for chat
     useEffect(() => {
         
         if (!currentRoomId) {
              console.error("[ChatPage Effect] Room ID is missing, cannot connect.");
-             onNavigateToDashboard();
+             onLogout();
              return;
         } 
 
@@ -188,24 +206,28 @@ const ChatPage: React.FC<ChatPageProps> = ({
         });
 
         socket.on('connect_error', (err: any) => {
-            console.error('Chat socket connection error details:', err, err.message, err.data);
-            // 인증 관련 오류인 경우 로그아웃 처리
-            if (err.message.includes('인증') || err.message.includes('권한') || err.message.includes('찾을 수 없')) {
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('currentChatRoomId');
-                window.location.href = '/'; // 로그인 페이지로 강제 이동
+            if (
+                err.message.includes('인증') ||
+                err.message.includes('권한') ||
+                err.message.includes('찾을 수 없') ||
+                err.message.includes('존재하지')
+            ) {
+                setNoAccessMessage('권한이 없거나 존재하지 않는 채팅방입니다.');
+                setShowNoAccessModal(true);
             } else {
                 setError(`채팅 서버 연결 실패: ${err.message}`);
             }
         });
 
         socket.on('error', (errorData: { message: string }) => {
-            console.error('Chat Error from server:', errorData);
-            // 인증 관련 오류인 경우 로그아웃 처리
-            if (errorData.message.includes('인증') || errorData.message.includes('권한') || errorData.message.includes('찾을 수 없')) {
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('currentChatRoomId');
-                window.location.href = '/'; // 로그인 페이지로 강제 이동
+            if (
+                errorData.message.includes('인증') ||
+                errorData.message.includes('권한') ||
+                errorData.message.includes('찾을 수 없') ||
+                errorData.message.includes('존재하지')
+            ) {
+                setNoAccessMessage('권한이 없거나 존재하지 않는 채팅방입니다.');
+                setShowNoAccessModal(true);
             } else {
                 setError(`채팅 오류: ${errorData.message}`);
             }
@@ -218,21 +240,24 @@ const ChatPage: React.FC<ChatPageProps> = ({
 
         // Listener for when a user disconnects (the event you added)
         socket.on('user-disconnected', (data: { roomId: string, userId: string }) => {
-          if (data.roomId === currentRoomId) { // 현재 방의 사용자인지 확인
+          if (data.roomId === currentRoomId) {
             setIsPartnerLeft(true);
           }
         });
 
         // Listener for successful leave confirmation from backend
         socket.on('chat_left', () => {
-            // Navigate away after confirmation
-            onNavigateToDashboard(); 
+            if (isMaleAutoSearch()) {
+                localStorage.setItem('autoStartMatching', 'true');
+            }
+            navigate('/');
         });
 
         // Listener for when the partner leaves
         socket.on('partner_left', (data: { roomId: string }) => {
-             if (data.roomId === currentRoomId) { // 현재 방의 이벤트인지 확인
-                setIsPartnerLeft(true); // <-- 상태 업데이트
+             console.log('[SOCKET] partner_left 이벤트 수신:', data);
+             if (data.roomId === currentRoomId) {
+                setIsPartnerLeft(true);
              }
         });
         
@@ -265,20 +290,7 @@ const ChatPage: React.FC<ChatPageProps> = ({
             socket.off('connect_error');
         };
     // Re-run effect if currentRoomId changes (though ideally it shouldn't change often within the page)
-    }, [currentRoomId, userId, onNavigateToDashboard]); // Add userId and onNavigateToDashboard to dependencies
-
-    // 기존 Auto search 기능 대신 상대방 나갈 때 처리
-    useEffect(() => {
-        // 상대방이 나가면 일정 시간 후 대시보드로 이동
-        if (isPartnerLeft) {
-            // 약간의 지연 후에 대시보드로 이동 (사용자에게 상대방이 나갔다는 메시지를 보여줄 시간을 주기 위해)
-            const timer = setTimeout(() => {
-                onNavigateToDashboard();
-            }, 2000);
-            
-            return () => clearTimeout(timer);
-        }
-    }, [isPartnerLeft, onNavigateToDashboard]);
+    }, [currentRoomId, userId, onLogout, navigate]); // Add userId and onLogout to dependencies
 
     // Function to send a message
     const handleSendMessage = (text: string) => {
@@ -300,14 +312,10 @@ const ChatPage: React.FC<ChatPageProps> = ({
         <div className={styles.pageWrapper}> 
             {/* <Header /> */}
             <div className={styles.chatPageContainer}>
-                <Sidebar 
-                    onLogout={onLogout} 
-                    onNavigateToDashboard={onNavigateToDashboard} 
-                    onNavigateToMyProfile={onNavigateToMyProfile}
-                    onNavigateToSettings={onNavigateToSettings}
-                    currentView={currentView}
+                <Sidebar
+                    onLogout={onLogout}
+                    currentView={undefined}
                     matchedRoomId={currentRoomId}
-                    onNavigateToChat={() => {}} // 이미 채팅방에 있으므로 빈 함수 전달
                 />
                 <main className={styles.chatArea}>
                     {isLoadingHistory && <p>채팅 기록 로딩 중...</p>} 
@@ -327,6 +335,17 @@ const ChatPage: React.FC<ChatPageProps> = ({
                     onCreditUpdate={onCreditUpdate}
                 />
             </div>
+            <Modal
+                isOpen={showNoAccessModal}
+                onClose={() => {
+                    setShowNoAccessModal(false);
+                    onLogout();
+                }}
+                title="채팅방 접근 불가"
+            >
+                <p>{noAccessMessage}</p>
+                <button onClick={() => { setShowNoAccessModal(false); onLogout(); }}>확인</button>
+            </Modal>
         </div>
     );
 };

@@ -37,15 +37,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 컴포넌트 마운트 시 로컬 스토리지에서 토큰 확인
   useEffect(() => {
-    // 토큰 확인 - 통일된 방식으로 accessToken만 사용
+    // 토큰 확인 - 통일된 방식으로 accessToken만 사용, access_token은 삭제
+    localStorage.removeItem('access_token');
     const storedToken = localStorage.getItem('accessToken');
-    
     if (storedToken) {
-      // 토큰 저장 및 로그인 상태 설정
       setToken(storedToken);
       setIsLoggedIn(true);
-      
-      // 토큰이 있으면 사용자 정보 가져오기
       refreshUserInfo();
     }
   }, []);
@@ -101,43 +98,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 로그인 처리 함수
   const login = useCallback((newToken: string) => {
-    // 'Bearer ' 접두사가 있으면 제거
     let processedToken = newToken;
     if (processedToken.startsWith('Bearer ')) {
       processedToken = processedToken.substring(7);
     }
-    
-    // JSON 문자열 형태인 경우 추출
     try {
       const tokenObj = JSON.parse(processedToken);
       if (tokenObj.token || tokenObj.accessToken) {
         processedToken = tokenObj.token || tokenObj.accessToken;
       }
-    } catch (e) {
-      // JSON이 아니면 그대로 사용
-    }
-    
-    // 확실하게 localStorage 비우고 시작
+    } catch (e) {}
     localStorage.clear();
-    
-    // 새 표준 키에 저장
     localStorage.setItem('accessToken', processedToken);
-    
+    localStorage.removeItem('access_token');
     setToken(processedToken);
     setIsLoggedIn(true);
-    
-    // 로그인 시 사용자 정보 가져오기
     refreshUserInfo();
   }, [refreshUserInfo]);
 
   // 로그아웃 처리 함수
   const logout = useCallback(() => {
-    // 토큰 제거 (통일된 방식)
     localStorage.removeItem('accessToken');
-    
-    // 모든 localStorage 항목 제거 (완전 초기화)
+    localStorage.removeItem('access_token');
     localStorage.clear();
-    
     setToken(null);
     setUserId(null);
     setIsLoggedIn(false);

@@ -47,9 +47,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
         event.preventDefault();
         setIsLoading(true);
         setError(null);
-
         // 이전에 저장된 토큰이나 채팅방 ID만 제거하고 auto search 설정은 유지
         localStorage.removeItem('accessToken');
+        localStorage.removeItem('access_token');
         localStorage.removeItem('currentChatRoomId');
 
         const credentials: LoginCredentials = { email, password };
@@ -58,8 +58,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
             const response = await authApi.login(credentials);
 
             if (response.success && response.token) {
-                // Store the token using the new standard key
                 localStorage.setItem('accessToken', response.token);
+                localStorage.removeItem('access_token');
                 // TODO: Implement rememberMe functionality if needed
                 if (rememberMe) {
                     // localStorage.setItem('rememberMe', 'true'); // Example
@@ -140,24 +140,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
     // Wrapper function for the button onClick
     const handleGoogleLoginClick = () => {
         setError(null);
-        setIsLoading(true); // Set loading true when button is clicked
-        
-        // 전체 localStorage를 지우는 대신 필요한 항목만 제거
-        // 이전에 저장된 토큰이나 채팅방 ID만 제거하고 auto search 설정은 유지
+        setIsLoading(true);
         localStorage.removeItem('accessToken');
+        localStorage.removeItem('access_token');
         localStorage.removeItem('currentChatRoomId');
-        
-        // 기존의 localStorage.clear() 대신 위의 코드로 대체
-        
-        googleLogin(); // Initiate the Google login flow
+        googleLogin();
     };
 
     const handleKakaoLogin = () => {
-        // 이전에 저장된 토큰이나 채팅방 ID만 제거하고 auto search 설정은 유지
         localStorage.removeItem('accessToken');
+        localStorage.removeItem('access_token');
         localStorage.removeItem('currentChatRoomId');
-        
-        setIsKakaoModalOpen(true); // Open the placeholder modal
+        setIsKakaoModalOpen(true);
     };
 
     const closeKakaoModal = () => setIsKakaoModalOpen(false);

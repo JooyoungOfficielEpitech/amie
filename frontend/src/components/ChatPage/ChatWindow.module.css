@@ -68,4 +68,31 @@
 
 .sendButton:hover {
     background-color: #E43A5F;
+}
+
+.partnerLeftBanner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #fafbfc;
+    color: #444;
+    font-size: 0.97em;
+    border-radius: 8px;
+    padding: 7px 12px;
+    margin-bottom: 10px;
+    border: 1px solid #ececec;
+    box-shadow: none;
+    font-weight: 400;
+    letter-spacing: 0;
+    opacity: 0.95;
+}
+.partnerLeftBanner .icon {
+    font-size: 1.1em;
+    color: #FE466C;
+    margin-right: 2px;
+}
+.partnerLeftBanner .highlight {
+    color: #FE466C;
+    font-weight: 500;
 } 

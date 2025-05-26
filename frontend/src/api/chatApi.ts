@@ -5,10 +5,20 @@ export interface SendMessageData {
   message: string;
 }
 
-export const getChatRoomStatus = async (roomId: string): Promise<{ success: boolean; isActive?: boolean; message?: string }> => {
+export interface ChatRoomStatus {
+  success: boolean;
+  isActive?: boolean;
+  message?: string;
+  user1Left?: boolean;
+  user2Left?: boolean;
+  user1Id?: string;
+  user2Id?: string;
+}
+
+export const getChatRoomStatus = async (roomId: string): Promise<ChatRoomStatus> => {
     try {
         const response = await axiosInstance.get(`/chat/room/${roomId}/status`);
-        return response.data; // Expecting { success: boolean, isActive: boolean }
+        return response.data;
     } catch (error: any) {
         console.error(`Error fetching chat room status for ${roomId}:`, error);
         const message = error.response?.data?.error || error.message || '채팅방 상태 확인 중 오류 발생';

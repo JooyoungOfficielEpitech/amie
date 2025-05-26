@@ -5,7 +5,8 @@ export interface IChatRoom extends Document {
   _id: string;
   user1Id: string;  // 매칭된 남성 사용자
   user2Id: string;  // 매칭된 여성 사용자
-  isActive: boolean;  // 활성화 상태
+  user1Left: boolean;  // user1이 나갔는지 여부
+  user2Left: boolean;  // user2가 나갔는지 여부
   lastMessageAt?: Date;  // 마지막 메시지 시간
   createdAt: Date;
   updatedAt: Date;
@@ -31,9 +32,14 @@ const ChatRoomSchema: Schema = new Schema(
       required: true,
       index: true
     },
-    isActive: {
+    user1Left: {
       type: Boolean,
-      default: true,
+      default: false,
+      index: true
+    },
+    user2Left: {
+      type: Boolean,
+      default: false,
       index: true
     },
     lastMessageAt: {
@@ -58,27 +64,32 @@ ChatRoomSchema.index(
   { 
     user1Id: 1, 
     user2Id: 1, 
-    isActive: 1 
+    user1Left: 1,
+    user2Left: 1
   }, 
   { 
     unique: true, 
-    partialFilterExpression: { isActive: true } 
+    partialFilterExpression: { 
+      $or: [
+        { user1Left: false },
+        { user2Left: false }
+      ]
+    }
   }
 );
 
 // 사용자가 참여한 모든 채팅방을 빠르게 조회할 수 있도록 인덱스 설정
-ChatRoomSchema.index({ user1Id: 1, isActive: 1 });
-ChatRoomSchema.index({ user2Id: 1, isActive: 1 });
+ChatRoomSchema.index({ user1Id: 1, user1Left: 1 });
+ChatRoomSchema.index({ user2Id: 1, user2Left: 1 });
 ChatRoomSchema.index({ createdAt: -1 });
 
 // 정적 메서드 - 사용자 ID로 활성 채팅방 찾기
 ChatRoomSchema.statics.findActiveRoomsByUserId = function(userId: string) {
   return this.find({
     $or: [
-      { user1Id: userId },
-      { user2Id: userId }
-    ],
-    isActive: true
+      { user1Id: userId, user1Left: false },
+      { user2Id: userId, user2Left: false }
+    ]
   }).sort({ lastMessageAt: -1, createdAt: -1 });
 };
 
@@ -86,10 +97,9 @@ ChatRoomSchema.statics.findActiveRoomsByUserId = function(userId: string) {
 ChatRoomSchema.statics.findActiveRoomBetweenUsers = function(user1Id: string, user2Id: string) {
   return this.findOne({
     $or: [
-      { user1Id: user1Id, user2Id: user2Id },
-      { user1Id: user2Id, user2Id: user1Id }
-    ],
-    isActive: true
+      { user1Id: user1Id, user2Id: user2Id, user1Left: false, user2Left: false },
+      { user1Id: user2Id, user2Id: user1Id, user1Left: false, user2Left: false }
+    ]
   });
 };
 

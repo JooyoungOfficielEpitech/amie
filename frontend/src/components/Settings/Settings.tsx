@@ -6,24 +6,12 @@ import Modal from '../common/Modal';
 import { userApi } from '../../api';
 
 interface SettingsProps {
-    onNavigateToDashboard: () => void;
     onLogout: () => void;
-    onNavigateToMyProfile: () => void;
-    onNavigateToSettings: () => void;
-    currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
+    currentView: 'settings';
     currentChatRoomId?: string | null;
-    onNavigateToChat?: (roomId: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ 
-    onNavigateToDashboard, 
-    onLogout, 
-    onNavigateToMyProfile, 
-    onNavigateToSettings,
-    currentView,
-    currentChatRoomId,
-    onNavigateToChat
-}) => {
+const Settings: React.FC<SettingsProps> = ({ onLogout, currentView, currentChatRoomId }) => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -118,14 +106,10 @@ const Settings: React.FC<SettingsProps> = ({
         <div className={styles.pageWrapper}>
             {/* <Header /> */}
             <div className={styles.contentWrapper}>
-                <Sidebar 
+                <Sidebar
                     onLogout={onLogout}
-                    onNavigateToDashboard={onNavigateToDashboard}
-                    onNavigateToMyProfile={onNavigateToMyProfile}
-                    onNavigateToSettings={onNavigateToSettings}
                     currentView={currentView}
-                    matchedRoomId={matchedRoomId}
-                    onNavigateToChat={onNavigateToChat || navigateToChat}
+                    matchedRoomId={currentChatRoomId || null}
                 />
                 <main className={styles.mainContent}>
                     <h2>{AppStrings.SETTINGS_TITLE}</h2>

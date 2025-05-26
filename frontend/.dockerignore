@@ -1,0 +1,35 @@
+# Ignore node modules and build output
+node_modules
+build
+dist
+
+# Ignore logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore git and version control
+.git
+.gitignore
+
+# Ignore IDE/editor configs
+.vscode
+.idea
+*.swp
+
+# Ignore test coverage
+coverage
+
+# Ignore environment files (if not needed in image)
+.env
+.env.*
+
+# Ignore misc
+*.tgz
+*.gz
+*.zip 

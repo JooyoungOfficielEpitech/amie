@@ -11,6 +11,7 @@ import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
 import ProfileSlideshow from './ProfileSlideshow';
 import MatchingBox from './MatchingBox';
+import { useNavigate } from 'react-router-dom';
 
 // 매칭에 필요한 크레딧
 const REQUIRED_MATCHING_CREDIT = 10;
@@ -24,15 +25,11 @@ interface ExtendedUserProfile extends UserProfile {
 // Define props
 interface MainPageProps {
     onLogout: () => void;
-    onNavigateToChat: (roomId: string) => void; // Make roomId required
-    onNavigateToMyProfile: () => void;
-    onNavigateToSettings: () => void;
-    currentView: 'dashboard' | 'chat' | 'my-profile' | 'settings';
-    onCreditUpdate: () => Promise<void>; // Add the missing prop type
-    shouldStartMatching?: boolean; // App.tsx에서 전달받는 자동 매칭 시작 prop
+    onCreditUpdate: () => Promise<void>;
+    shouldStartMatching?: boolean;
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToChat, onNavigateToMyProfile, onNavigateToSettings, currentView, onCreditUpdate, shouldStartMatching = false }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false }) => {
     // 상태들
     const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
@@ -43,10 +40,13 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
     const [matchedRoomId, setMatchedRoomId] = useState<string | null>(null);
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
+    const [isWaiting, setIsWaiting] = useState<boolean>(false);
     
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
     const profileFetchTimeRef = useRef<number>(0);
+    
+    const navigate = useNavigate();
     
     // 소켓 초기화 시도했지만 연결 안될 경우 자동 새로고침
     useEffect(() => {
@@ -108,20 +108,11 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         const handleMatchSuccess = (data: { roomId: string; partner: any; creditUsed: number }) => {
             setIsLoadingMatchAction(false);
             setIsMatching(false);
-            // 매칭 성공 시 애니메이션 비활성화
             setShowRippleAnimation(false);
             setMatchedRoomId(data.roomId);
-            
-            // 매칭 성공 시 크레딧 업데이트 - 필요한 경우만 실행
-            
-            // 크레딧 정보만 업데이트하고 전체 프로필 갱신은 스킵
-            fetchCredit().catch(() => {
-                // 오류 처리
-            });
-            
-            // 매칭 성공 즉시 채팅방으로 이동 - localStorage에도 저장
+            fetchCredit().catch(() => {});
             localStorage.setItem('currentChatRoomId', data.roomId);
-            onNavigateToChat(data.roomId);
+            navigate(`/chat/${data.roomId}`);
         };
 
         const handleMatchError = (errorData: { message: string }) => {
@@ -205,8 +196,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         // 이미 매칭된 경우 채팅방으로 이동
         if (matchedRoomId) {
             // 채팅방 상태 확인 없이 바로 이동
-            onNavigateToChat(matchedRoomId);
-            return;
+            localStorage.setItem('currentChatRoomId', matchedRoomId);
         }
 
         // 소켓 연결 확인
@@ -238,7 +228,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             setShowRippleAnimation(true);
             matchSocket.emit('start_match');
         }
-    }, [matchSocket?.connected, isMatching, matchedRoomId, onNavigateToChat, contextCredit]);
+    }, [matchSocket?.connected, isMatching, matchedRoomId, contextCredit]);
 
     // 자동 매칭 시작 체크 - localStorage와 props를 통합하여 중복 요청 방지
     useEffect(() => {
@@ -254,8 +244,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                     localStorage.removeItem('autoStartMatching');
                 }
                 
-                // 이미 매칭 중인 경우 추가 요청을 보내지 않음
-                if (isMatching) {
+                // 이미 매칭 중이거나 채팅방이 있거나, isWaiting이면 추가 요청을 보내지 않음
+                if (isMatching || matchedRoomId || isWaiting) {
                     return;
                 }
                 
@@ -264,8 +254,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                 
                 // 약간의 지연 후 매칭 상태 재확인
                 setTimeout(() => {
-                    // 지연 후에도 매칭 중이 아니면 매칭 시작
-                    if (!isMatching) {
+                    // 지연 후에도 매칭 중이 아니고 채팅방이 없고, isWaiting도 아니면 매칭 시작
+                    if (!isMatching && !matchedRoomId && !isWaiting) {
                         // 크레딧 확인
                         if (contextCredit < REQUIRED_MATCHING_CREDIT) {
                             setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
@@ -280,13 +270,11 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                 }, 500); // 500ms 지연
             }
         }
-    }, [profile, matchedRoomId, isLoadingProfile, matchSocket, contextCredit, shouldStartMatching, isMatching]);
+    }, [profile, matchedRoomId, isLoadingProfile, matchSocket, contextCredit, shouldStartMatching, isMatching, isWaiting]);
     
     // Original dashboard navigation handler (if needed elsewhere, otherwise remove)
     const handleNavigateToDashboard = () => {
-        if (currentView !== 'dashboard') {
-            // 필요한 경우 로직 추가
-        }
+        // 필요한 경우 로직 추가
     };
 
     // 버튼 상태 관련 memoized 값들
@@ -316,17 +304,17 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
 
     // 크레딧 변경 감지 - 불필요한 렌더링 방지
     useEffect(() => {
-        // CreditContext의 크레딧 값이 변할 때만 실행
-        
-        // 크레딧 부족 시 오류 메시지 표시, 충분해지면 메시지 제거 - 매칭 상태가 아닐 때만
-        if (!isMatching && !matchedRoomId) {
+        // 매칭 대기 중이거나 이미 채팅방이 있으면 오류 메시지 표시하지 않음
+        if (!isMatching && !isWaiting && !matchedRoomId) {
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
                 setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
             } else if (matchError === CREDIT_MESSAGES.INSUFFICIENT_CREDITS) {
                 setMatchError(null);
             }
+        } else if (matchError === CREDIT_MESSAGES.INSUFFICIENT_CREDITS) {
+            setMatchError(null);
         }
-    }, [contextCredit]);
+    }, [contextCredit, isMatching, isWaiting, matchedRoomId]);
 
     // 프로필 불러오기 최적화 - 중복 요청 방지
     useEffect(() => {
@@ -373,13 +361,52 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
         fetchProfileData();
     }, []);
 
-    // 이미 매칭된 채팅방이 있으면 자동으로 채팅방으로 이동
+    // matchedRoomId가 null이고, 프로필 로딩이 끝났으면 강제로 매칭 상태 확인
+    useEffect(() => {
+      if (!matchedRoomId && !isLoadingProfile && profile) {
+        userApi.getProfile().then(response => {
+          if (response.success && response.user && response.user.matchedRoomId) {
+            setMatchedRoomId(response.user.matchedRoomId);
+          }
+        });
+      }
+    }, [matchedRoomId, isLoadingProfile, profile]);
+
+    // 이미 매칭된 채팅방이 있으면 자동으로 채팅방으로 이동 (최상단에서 실행)
     useEffect(() => {
         if (matchedRoomId) {
             localStorage.setItem('currentChatRoomId', matchedRoomId);
-            onNavigateToChat(matchedRoomId);
+            navigate(`/chat/${matchedRoomId}`);
         }
-    }, [matchedRoomId, onNavigateToChat]);
+    }, [matchedRoomId, navigate]);
+
+    // 매칭 상태 확인 및 리다이렉트 (status API 기반)
+    useEffect(() => {
+        const checkMatchStatus = async () => {
+            try {
+                const response = await userApi.getMatchStatus();
+                if (response.success) {
+                    setIsWaiting(!!response.isWaiting);
+                    if (response.chatRoomId) {
+                        setMatchedRoomId(response.chatRoomId);
+                        localStorage.setItem('currentChatRoomId', response.chatRoomId);
+                        navigate(`/chat/${response.chatRoomId}`);
+                    } else {
+                        setMatchedRoomId(null);
+                    }
+                }
+            } catch (error) {
+                console.error('매칭 상태 확인 중 오류:', error);
+            }
+        };
+
+        if (!isLoadingProfile && profile) {
+            checkMatchStatus();
+        }
+    }, [isLoadingProfile, profile, navigate]);
+
+    // matchedRoomId가 있으면 아무것도 렌더하지 않음 (혹은 로딩 표시)
+    if (matchedRoomId) return null;
 
     return (
         <div className={styles.pageContainer}>
@@ -388,13 +415,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
             <div className={styles.contentWrapper}>
                 <Sidebar
                     onLogout={onLogout}
-                    // Pass handleNavigateToDashboard if Sidebar still needs it
-                    onNavigateToDashboard={handleNavigateToDashboard}
-                    onNavigateToMyProfile={onNavigateToMyProfile}
-                    onNavigateToSettings={onNavigateToSettings}
-                    currentView={currentView}
+                    currentView={'dashboard'}
                     matchedRoomId={matchedRoomId}
-                    onNavigateToChat={onNavigateToChat}
                 />
                 <main className={styles.mainContent}>
                     <div className={styles.mainHeader}>
@@ -433,6 +455,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onNavigateToCh
                                 isLoadingRoomStatus={isLoadingMatchAction}
                                 matchError={matchError}
                                 onMatchButtonClick={handleMatchButtonClick}
+                                isSocketConnected={isSocketConnected}
                             />
                         )}
                     </div>

@@ -238,13 +238,15 @@ export const getProfile = async (req: Request, res: Response) => {
     });
 
     // 활성화된 채팅방이 있는지 확인
-    const activeChatRoom = await ChatRoom.findOne({
+    console.log('[getProfile] Searching for active chat room for user:', userId);
+    const activeChatRooms = await ChatRoom.find({
       $or: [
-        { user1Id: userId },
-        { user2Id: userId }
-      ],
-      isActive: true
-    }).sort({ createdAt: -1 });
+        { user1Id: userId, user1Left: false },
+        { user2Id: userId, user2Left: false }
+      ]
+    }).sort({ lastMessageAt: -1, createdAt: -1 });
+    console.log('[getProfile] Found active chat rooms:', activeChatRooms);
+    const activeChatRoom = activeChatRooms[0]; // 가장 최근 채팅방 사용
 
     // 사용자 프로필 정보
     const profileData = {

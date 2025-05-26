@@ -148,7 +148,7 @@ router.post('/', messageController.sendMessage as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/chat-room/:chatRoomId', messageController.getChatRoomMessages as unknown as RequestHandler);
+router.get('/chat-room/:chatRoomId', messageController.getMessages as unknown as RequestHandler);
 
 /**
  * @swagger

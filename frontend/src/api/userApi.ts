@@ -135,11 +135,8 @@ export const userApi = {
   
   rechargeCredit: async (amount: number): Promise<{ success: boolean; credit?: number; message?: string }> => {
     try {
-      // Assuming a recharge endpoint exists, e.g., /user/recharge
-      // The actual endpoint might differ based on backend routes
       const response = await axiosInstance.post('/user/recharge', { amount }); 
       
-      // Assuming response contains { success: boolean, credit: number } or { success: false, message: string }
       if (response.data.success) {
           return { success: true, credit: response.data.credit };
       } else {
@@ -148,6 +145,23 @@ export const userApi = {
     } catch (error: any) {
       console.error('[userApi.rechargeCredit] API 호출 오류:', error);
       const message = error.response?.data?.message || error.message || '크레딧 충전 중 오류 발생';
+      return { success: false, message };
+    }
+  },
+
+  getMatchStatus: async (): Promise<{ success: boolean; isWaiting?: boolean; chatRoomId?: string | null; matchedUser?: any; message?: string }> => {
+    try {
+      const response = await axiosInstance.get('/match/status');
+      return {
+        success: response.data.success,
+        isWaiting: response.data.isWaiting,
+        chatRoomId: response.data.chatRoomId,
+        matchedUser: response.data.matchedUser,
+        message: response.data.message
+      };
+    } catch (error: any) {
+      console.error('[userApi.getMatchStatus] API 호출 오류:', error);
+      const message = error.response?.data?.message || error.message || '매칭 상태 확인 중 오류 발생';
       return { success: false, message };
     }
   }

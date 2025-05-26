@@ -6,88 +6,95 @@ import User from '../models/User';
 // 새 메시지 전송
 export const sendMessage = async (req: Request, res: Response) => {
   try {
-    const { chatRoomId, senderId, message } = req.body;
+    const { roomId } = req.params;
+    const { message } = req.body;
+    const userId = req.user?._id;
 
-    // 유효성 검사
-    if (!chatRoomId || !senderId || !message) {
-      return res.status(400).json({ message: '채팅방 ID, 발신자 ID, 메시지 내용은 필수 항목입니다.' });
+    if (!userId) {
+      return res.status(401).json({ success: false, error: '인증되지 않은 사용자입니다.' });
     }
 
-    // 채팅방이 존재하는지 확인
-    const chatRoom = await ChatRoom.findById(chatRoomId);
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+      return res.status(400).json({ success: false, error: '메시지 내용을 입력해주세요.' });
+    }
+
+    // 채팅방 존재 및 참여 권한 확인
+    const chatRoom = await ChatRoom.findOne({
+      _id: roomId,
+      $or: [
+        { user1Id: userId, user1Left: false },
+        { user2Id: userId, user2Left: false }
+      ]
+    });
+
     if (!chatRoom) {
-      return res.status(404).json({ message: '존재하지 않는 채팅방입니다.' });
+      return res.status(404).json({ success: false, error: '채팅방을 찾을 수 없거나 접근 권한이 없습니다.' });
     }
 
-    // 채팅방이 활성 상태인지 확인
-    if (!chatRoom.isActive) {
-      return res.status(400).json({ message: '비활성화된 채팅방에는 메시지를 보낼 수 없습니다.' });
-    }
-
-    // 발신자가 채팅방 참여자인지 확인
-    if (chatRoom.user1Id !== senderId && chatRoom.user2Id !== senderId) {
-      return res.status(403).json({ message: '본인이 참여하지 않은 채팅방에는 메시지를 보낼 수 없습니다.' });
-    }
-
-    // 발신자가 존재하는 사용자인지 확인
-    const sender = await User.findById(senderId);
-    if (!sender) {
-      return res.status(404).json({ message: '존재하지 않는, 발신자입니다.' });
+    // 상대방이 나갔는지 확인
+    const isUser1 = chatRoom.user1Id === userId;
+    const partnerLeft = isUser1 ? chatRoom.user2Left : chatRoom.user1Left;
+    if (partnerLeft) {
+      return res.status(400).json({ success: false, error: '상대방이 채팅방을 나갔습니다.' });
     }
 
     // 새 메시지 생성
     const newMessage = new Message({
-      chatRoomId,
-      senderId,
-      message
+      chatRoomId: roomId,
+      senderId: userId,
+      message: message.trim()
     });
 
-    const savedMessage = await newMessage.save();
+    await newMessage.save();
 
-    res.status(201).json({
-      message: '메시지가 전송되었습니다.',
-      data: savedMessage
+    // 채팅방 업데이트 시간 갱신
+    chatRoom.updatedAt = new Date();
+    await chatRoom.save();
+
+    res.json({
+      success: true,
+      message: newMessage
     });
   } catch (error) {
     console.error('메시지 전송 에러:', error);
-    res.status(500).json({ message: '메시지 전송 중 오류가 발생했습니다.' });
+    res.status(500).json({ success: false, error: '메시지 전송 중 오류가 발생했습니다.' });
   }
 };
 
 // 채팅방의 메시지 목록 조회
-export const getChatRoomMessages = async (req: Request, res: Response) => {
+export const getMessages = async (req: Request, res: Response) => {
   try {
-    const { chatRoomId } = req.params;
-    const { page = 1, limit = 50 } = req.query; // 페이징 처리
+    const { roomId } = req.params;
+    const userId = req.user?._id;
 
-    // 페이지와 제한 숫자로 변환
-    const pageNum = parseInt(page as string, 10);
-    const limitNum = parseInt(limit as string, 10);
-
-    // 채팅방이 존재하는지 확인
-    const chatRoom = await ChatRoom.findById(chatRoomId);
-    if (!chatRoom) {
-      return res.status(404).json({ message: '존재하지 않는 채팅방입니다.' });
+    if (!userId) {
+      return res.status(401).json({ success: false, error: '인증되지 않은 사용자입니다.' });
     }
 
-    // 메시지 총 개수 (페이징 정보용)
-    const totalMessages = await Message.countDocuments({ chatRoomId });
+    // 채팅방 존재 및 참여 권한 확인
+    const chatRoom = await ChatRoom.findOne({
+      _id: roomId,
+      $or: [
+        { user1Id: userId, user1Left: false },
+        { user2Id: userId, user2Left: false }
+      ]
+    });
 
-    // 메시지 조회 (최신 메시지가 먼저 나오도록 내림차순 정렬)
-    const messages = await Message.find({ chatRoomId })
-      .sort({ createdAt: -1 })
-      .skip((pageNum - 1) * limitNum)
-      .limit(limitNum);
+    if (!chatRoom) {
+      return res.status(404).json({ success: false, error: '채팅방을 찾을 수 없거나 접근 권한이 없습니다.' });
+    }
+
+    // 메시지 조회
+    const messages = await Message.find({ chatRoomId: roomId })
+      .sort({ createdAt: 1 });
 
     res.json({
-      totalMessages,
-      totalPages: Math.ceil(totalMessages / limitNum),
-      currentPage: pageNum,
-      messages: messages.reverse() // 클라이언트에 보낼 때는 시간순으로 정렬
+      success: true,
+      messages
     });
   } catch (error) {
-    console.error('메시지 목록 조회 에러:', error);
-    res.status(500).json({ message: '메시지 목록 조회 중 오류가 발생했습니다.' });
+    console.error('메시지 조회 에러:', error);
+    res.status(500).json({ success: false, error: '메시지 조회 중 오류가 발생했습니다.' });
   }
 };
 

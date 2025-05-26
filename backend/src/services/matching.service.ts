@@ -379,10 +379,9 @@ export async function getMatchStatus(userId: string): Promise<any> {
     // 2. 활성 채팅방 확인
     const activeChatRoom = await ChatRoom.findOne({
       $or: [
-        { user1Id: userId },
-        { user2Id: userId }
-      ],
-      isActive: true
+        { user1Id: userId, user1Left: false },
+        { user2Id: userId, user2Left: false }
+      ]
     }).sort({ createdAt: -1 });
     
     return {

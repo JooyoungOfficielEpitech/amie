@@ -145,8 +145,6 @@ const Header: React.FC<HeaderProps> = ({
                     {isLoadingRecharge ? '처리중' : AppStrings.HEADER_RECHARGE_BUTTON}
                 </button>
                 {rechargeError && <span className={styles.creditError}>!</span>}
-                
-                {/* 남성 사용자용 토글 스위치 */}
                 {userGender === 'male' && (
                     <button 
                         className={`${styles.autoSearchButton} ${isToggleOn ? styles.autoSearchActive : ''}`}

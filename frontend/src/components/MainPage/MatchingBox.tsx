@@ -13,6 +13,7 @@ interface MatchingBoxProps {
   isLoadingRoomStatus: boolean;
   matchError: string | null;
   onMatchButtonClick: () => void;
+  isSocketConnected: boolean;
 }
 
 const MatchingBox: React.FC<MatchingBoxProps> = ({
@@ -21,13 +22,16 @@ const MatchingBox: React.FC<MatchingBoxProps> = ({
   isButtonDisabled,
   buttonText,
   matchError,
-  onMatchButtonClick
+  onMatchButtonClick,
+  isSocketConnected
 }) => {
   return (
     <section className={styles.contentBox}>
       <div className={styles.profileHeader}>
         <span className={styles.profileTitle}>{`${AppStrings.MAINPAGE_PROFILE_TITLE_PREFIX}${profile.nickname}${AppStrings.MAINPAGE_PROFILE_TITLE_SUFFIX}`}</span>
-        <span className={styles.statusBadge}>{profile.isActive ? AppStrings.MAINPAGE_STATUS_ACTIVE : '비활성'}</span>
+        <span className={styles.statusBadge}>
+          {isSocketConnected ? AppStrings.MAINPAGE_STATUS_ACTIVE : 'DISCONNECTED'}
+        </span>
       </div>
       
       {/* 매칭 시작/취소 버튼 */}
