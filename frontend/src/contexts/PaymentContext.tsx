@@ -51,6 +51,11 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children, onCr
   // 앱 초기화 시 서버에서 최신 크레딧 비용 정보 가져오기
   useEffect(() => {
     const fetchCreditUsageInfo = async () => {
+      // usageInfo가 이미 있으면 다시 가져오지 않음
+      if (usageInfo) {
+        return;
+      }
+
       try {
         await fetchUsageInfo();
       } catch (error) {
@@ -59,7 +64,7 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children, onCr
     };
 
     fetchCreditUsageInfo();
-  }, []);
+  }, [usageInfo, fetchUsageInfo]);
 
   const getServiceInfo = (service: string) => {
     if (!usageInfo) return null;

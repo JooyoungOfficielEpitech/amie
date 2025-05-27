@@ -137,6 +137,12 @@ export const CreditProvider: React.FC<CreditProviderProps> = ({ children }) => {
   }, []);
 
   const fetchUsageInfo = useCallback(async () => {
+    // 인증되지 않은 경우 API 호출하지 않음
+    if (!token) {
+      setUsageInfo(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -154,7 +160,7 @@ export const CreditProvider: React.FC<CreditProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   const charge = useCallback(async (data: ChargeData) => {
     setLoading(true);
