@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 interface ApiResponse<T> {
   success: boolean;
