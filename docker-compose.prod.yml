@@ -32,6 +32,8 @@ services:
     networks:
       - amie-network
     command: --wiredTigerCacheSizeGB 0.5
+    ports:
+      - "27017:27017"
 
   # Redis 서비스
   redis:
