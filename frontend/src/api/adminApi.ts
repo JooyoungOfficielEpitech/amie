@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axiosInstance from './axiosConfig';
 
 const API_URL = process.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
@@ -24,54 +24,37 @@ interface User {
 }
 
 export const adminApi = {
-  login: async (email: string, password: string): Promise<ApiResponse<LoginResponse>> => {
+  login: async (email: string, password: string) => {
     try {
-      const response = await axios.post(`${API_URL}/admin/login`, {
+      const response = await axiosInstance.post('/admin/login', {
         email,
         password
       });
-      return {
-        success: true,
-        data: response.data
-      };
+      return response.data;
     } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || '로그인에 실패했습니다.'
-      };
+      throw error;
     }
   },
 
-  getUsers: async (): Promise<ApiResponse<User[]>> => {
+  getUsers: async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await axios.get(`${API_URL}/users`, {
+      const response = await axiosInstance.get('/users', {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      return {
-        success: true,
-        data: response.data.map((user: any) => ({
-          ...user,
-          isActive: true,
-          isWaitingForMatch: user.isWaitingForMatch || false,
-          matchedRoomId: user.matchedRoomId || null
-        }))
-      };
+      return response.data;
     } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || '사용자 목록을 가져오는데 실패했습니다.'
-      };
+      throw error;
     }
   },
 
-  toggleUserStatus: async (userId: string, isActive: boolean): Promise<ApiResponse<void>> => {
+  toggleUserStatus: async (userId: string, isActive: boolean) => {
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.patch(
-        `${API_URL}/admin/users/${userId}/status`,
+      const response = await axiosInstance.patch(
+        `/admin/users/${userId}/status`,
         { isActive },
         {
           headers: {
@@ -79,14 +62,9 @@ export const adminApi = {
           }
         }
       );
-      return {
-        success: true
-      };
+      return response.data;
     } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || '사용자 상태 변경에 실패했습니다.'
-      };
+      throw error;
     }
   }
 }; 
