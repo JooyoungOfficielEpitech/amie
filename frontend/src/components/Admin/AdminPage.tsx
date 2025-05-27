@@ -80,7 +80,7 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
+  async (userId: string, currentStatus: boolean) => {
     try {
       const response = await adminApi.toggleUserStatus(userId, !currentStatus);
       if (response.success) {

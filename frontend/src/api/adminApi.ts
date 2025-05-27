@@ -70,7 +70,7 @@ export const adminApi = {
   toggleUserStatus: async (userId: string, isActive: boolean): Promise<ApiResponse<void>> => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await axios.patch(
+      await axios.patch(
         `${API_URL}/admin/users/${userId}/status`,
         { isActive },
         {
