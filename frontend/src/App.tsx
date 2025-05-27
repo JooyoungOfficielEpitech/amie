@@ -13,6 +13,8 @@ import { CreditProvider } from './contexts/CreditContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { PaymentProvider } from './contexts/PaymentContext';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import AdminLogin from './components/Admin/AdminLogin';
+import AdminPage from './components/Admin/AdminPage.tsx';
 
 // Define type for social signup initial data
 interface InitialSocialData {
@@ -249,66 +251,86 @@ function App() {
       <AuthProvider>
         <CreditProvider>
           <PaymentProvider onCreditUpdate={fetchUserProfile}>
-            {!isLoggedIn 
-              ? <div className="loginPageContainer">
-                  <Login 
-                    onLoginSuccess={handleLoginSuccess} 
-                    onStartSignup={handleStartSignup} 
-                    onStartSocialSignup={handleStartSocialSignup} 
-                  />
-                </div>
-              : (
-                <Router>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100vh',
-                    overflow: 'hidden'
-                  }}>
-                    {renderHeader()}
-                    <div style={{ flexGrow: 1, overflow: 'hidden' }}>
-                      <Routes>
-                        <Route path="/" element={
-                          <MainPage 
-                            onLogout={handleLogout} 
-                            onCreditUpdate={fetchUserProfile}
-                          />
-                        } />
-                        <Route path="/chat/:roomId" element={
-                          <ChatPage 
-                            onLogout={handleLogout} 
-                            userId={currentUserProfile?.id || ''}
-                            onCreditUpdate={fetchUserProfile}
-                          />
-                        } />
-                        <Route path="/my-profile" element={
-                          <MyProfile 
-                            onLogout={handleLogout}
-                            currentView={'my-profile'}
-                            currentChatRoomId={currentChatRoomId}
-                          />
-                        } />
-                        <Route path="/settings" element={
-                          <Settings 
-                            onLogout={handleLogout}
-                            currentView={'settings'}
-                            currentChatRoomId={currentChatRoomId}
-                          />
-                        } />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                      </Routes>
-                    </div>
-                  </div>
-                </Router>
-              )
-            }
-            {showSignupFlow && (
-                <SignupFlow 
-                    isOpen={true}
-                    onClose={handleCloseSignup} 
-                    onComplete={handleSignupComplete}
-                    initialSocialData={socialSignupData} 
+            <Router>
+              <Routes>
+                {/* Admin routes */}
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route 
+                  path="/admin/*" 
+                  element={
+                    localStorage.getItem('adminToken') ? (
+                      <AdminPage />
+                    ) : (
+                      <Navigate to="/admin/login" replace />
+                    )
+                  } 
                 />
+                
+                {/* Main app routes */}
+                {!isLoggedIn ? (
+                  <Route path="*" element={
+                    <div className="loginPageContainer">
+                      <Login 
+                        onLoginSuccess={handleLoginSuccess} 
+                        onStartSignup={handleStartSignup} 
+                        onStartSocialSignup={handleStartSocialSignup} 
+                      />
+                    </div>
+                  } />
+                ) : (
+                  <>
+                    <Route path="/" element={
+                      <>
+                        {renderHeader()}
+                        <MainPage 
+                          onLogout={handleLogout} 
+                          onCreditUpdate={fetchUserProfile}
+                        />
+                      </>
+                    } />
+                    <Route path="/chat/:roomId" element={
+                      <>
+                        {renderHeader()}
+                        <ChatPage 
+                          onLogout={handleLogout} 
+                          userId={currentUserProfile?.id || ''}
+                          onCreditUpdate={fetchUserProfile}
+                        />
+                      </>
+                    } />
+                    <Route path="/my-profile" element={
+                      <>
+                        {renderHeader()}
+                        <MyProfile 
+                          onLogout={handleLogout}
+                          currentView={'my-profile'}
+                          currentChatRoomId={currentChatRoomId}
+                        />
+                      </>
+                    } />
+                    <Route path="/settings" element={
+                      <>
+                        {renderHeader()}
+                        <Settings 
+                          onLogout={handleLogout}
+                          currentView={'settings'}
+                          currentChatRoomId={currentChatRoomId}
+                        />
+                      </>
+                    } />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </>
+                )}
+              </Routes>
+            </Router>
+
+            {showSignupFlow && (
+              <SignupFlow 
+                isOpen={true}
+                onClose={handleCloseSignup} 
+                onComplete={handleSignupComplete}
+                initialSocialData={socialSignupData} 
+              />
             )}
             {isLoading && <div className="loading-overlay">처리 중...</div>}
             {error && <div className="error-message">오류: {error}</div>}

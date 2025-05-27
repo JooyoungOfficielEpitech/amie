@@ -7,6 +7,12 @@ export default defineConfig({
   define: {
     'process.env': {}
   },
+  css: {
+    modules: {
+      localsConvention: 'camelCase',
+      generateScopedName: '[name]__[local]___[hash:base64:5]'
+    }
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
