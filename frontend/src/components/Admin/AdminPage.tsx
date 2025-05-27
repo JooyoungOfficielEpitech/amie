@@ -68,13 +68,13 @@ const AdminPage: React.FC = () => {
     try {
       setLoading(true);
       const response = await adminApi.getUsers();
-      if (response.success && response.data) {
-        setUsers(response.data);
+      if (Array.isArray(response)) {
+        setUsers(response);
       } else {
-        setError(response.message || '사용자 목록을 가져오는데 실패했습니다.');
+        setError(response?.message || '사용자 목록을 가져오는데 실패했습니다.');
       }
     } catch (err: any) {
-      setError(err.message || '사용자 목록을 가져오는 중 오류가 발생했습니다.');
+      setError(err.response?.data?.message || err.message || '사용자 목록을 가져오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
