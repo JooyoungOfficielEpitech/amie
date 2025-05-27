@@ -15,6 +15,7 @@ import chatRoutes from './routes/chatRoutes';
 import creditRoutes from './routes/creditRoutes';
 import { specs, swaggerUi } from './config/swagger';
 import path from 'path';
+import Admin from './models/Admin';
 
 // 환경 변수 설정
 dotenv.config();
@@ -56,6 +57,26 @@ app.use('/admin', adminRoutes);
 app.get('/', (req, res) => {
   res.send('API 실행 중...');
 });
+
+async function ensureAdminUser() {
+  const adminEmail = 'admin@example.com';
+  const adminPassword = 'admin123';
+
+  const existing = await Admin.findOne({ email: adminEmail });
+  if (!existing) {
+    const admin = new Admin({
+      email: adminEmail,
+      passwordHash: adminPassword,
+      role: 'admin'
+    });
+    await admin.save();
+    console.log('기본 관리자 계정이 생성되었습니다:', adminEmail);
+  } else {
+    console.log('기본 관리자 계정이 이미 존재합니다:', adminEmail);
+  }
+}
+
+ensureAdminUser();
 
 // 에러 핸들러
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

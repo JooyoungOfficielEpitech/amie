@@ -40,11 +40,17 @@ const getAuthToken = () => {
 // 요청 인터셉터 설정
 axiosInstance.interceptors.request.use(
   (config) => {
+    // 로그인/회원가입 요청에는 토큰을 붙이지 않는다
+    if (
+      config.url?.includes('/login') ||
+      config.url?.includes('/register')
+    ) {
+      return config;
+    }
     const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {
