@@ -25,14 +25,14 @@ const AdminLogin: React.FC = () => {
 
     try {
       const response = await adminApi.login(email, password);
-      if (response.success && response.data?.token) {
-        localStorage.setItem('adminToken', response.data.token);
+      if (response.token) {
+        localStorage.setItem('adminToken', response.token);
         navigate('/admin');
       } else {
         setError(response.message || '로그인에 실패했습니다.');
       }
     } catch (err: any) {
-      setError(err.message || '로그인 중 오류가 발생했습니다.');
+      setError(err.response?.data?.message || err.message || '로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
