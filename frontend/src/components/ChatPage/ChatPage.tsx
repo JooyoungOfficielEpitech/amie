@@ -338,12 +338,12 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
                 isOpen={showNoAccessModal}
                 onClose={() => {
                     setShowNoAccessModal(false);
-                    onLogout();
+                    navigate('/'); // 메인 페이지로 이동
                 }}
                 title="채팅방 접근 불가"
             >
                 <p>{noAccessMessage}</p>
-                <button onClick={() => { setShowNoAccessModal(false); onLogout(); }}>확인</button>
+                <button onClick={() => { setShowNoAccessModal(false); navigate('/'); }}>확인</button>
             </Modal>
         </div>
     );
