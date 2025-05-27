@@ -87,7 +87,31 @@ export const createUser = async (req: Request, res: Response) => {
 export const getUsers = async (_req: Request, res: Response) => {
   try {
     const users = await User.find().select('-passwordHash');
-    res.json(users);
+    // 각 유저의 매칭 상태 계산
+    const usersWithStatus = await Promise.all(users.map(async (user) => {
+      // 채팅방 존재 여부 확인
+      const chatRoom = await ChatRoom.findOne({
+        $or: [
+          { user1Id: user._id, user1Left: false },
+          { user2Id: user._id, user2Left: false }
+        ]
+      });
+
+      let matchingStatus: 'WAITING' | 'MATCHED' | 'IDLE' = 'IDLE';
+      if (user.isWaitingForMatch) {
+        matchingStatus = 'WAITING';
+      } else if (chatRoom) {
+        matchingStatus = 'MATCHED';
+      }
+
+      return {
+        ...user.toObject(),
+        matchingStatus,
+        matchedRoomId: chatRoom ? chatRoom._id : null,
+      };
+    }));
+
+    res.json(usersWithStatus);
   } catch (error) {
     console.error('사용자 목록 조회 에러:', error);
     res.status(500).json({ message: '사용자 목록 조회 중 오류가 발생했습니다.' });

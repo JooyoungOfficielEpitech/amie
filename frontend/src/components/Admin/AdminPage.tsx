@@ -22,12 +22,26 @@ import styles from './AdminPage.module.css';
 
 interface User {
   id: string;
+  _id?: string;
   email: string;
   nickname: string;
   gender: string;
   createdAt: string;
   isActive: boolean;
+  matchingStatus?: 'WAITING' | 'MATCHED' | 'IDLE';
 }
+
+const getStatusLabel = (user: User) => {
+  switch (user.matchingStatus) {
+    case 'WAITING':
+      return '매칭 대기중';
+    case 'MATCHED':
+      return '매칭됨';
+    case 'IDLE':
+    default:
+      return '매칭 중 아님';
+  }
+};
 
 const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -119,29 +133,16 @@ const AdminPage: React.FC = () => {
                   <TableCell>성별</TableCell>
                   <TableCell>가입일</TableCell>
                   <TableCell>상태</TableCell>
-                  <TableCell>관리</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow key={user.id || user._id}>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>{user.nickname}</TableCell>
                     <TableCell>{user.gender === 'male' ? '남성' : '여성'}</TableCell>
                     <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      {user.isActive ? '활성' : '비활성'}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        color={user.isActive ? 'error' : 'success'}
-                        size="small"
-                        onClick={() => handleToggleUserStatus(user.id, user.isActive)}
-                      >
-                        {user.isActive ? '비활성화' : '활성화'}
-                      </Button>
-                    </TableCell>
+                    <TableCell>{getStatusLabel(user)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

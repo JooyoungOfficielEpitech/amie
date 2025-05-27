@@ -2,12 +2,6 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
-// Test admin credentials for development
-const TEST_ADMIN = {
-  email: 'root@root.com',
-  password: 'alpine'
-};
-
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -25,20 +19,14 @@ interface User {
   gender: string;
   createdAt: string;
   isActive: boolean;
+  isWaitingForMatch: boolean;
+  matchedRoomId: string | null;
 }
 
 export const adminApi = {
   login: async (email: string, password: string): Promise<ApiResponse<LoginResponse>> => {
     try {
-      // For development, check against test credentials
-      if (email === TEST_ADMIN.email && password === TEST_ADMIN.password) {
-        return {
-          success: true,
-          data: { token: 'test-admin-token' }
-        };
-      }
-
-      const response = await axios.post(`${API_URL}/api/admin/login`, {
+      const response = await axios.post(`${API_URL}/admin/login`, {
         email,
         password
       });
@@ -49,7 +37,7 @@ export const adminApi = {
     } catch (error: any) {
       return {
         success: false,
-        message: error.response?.data?.message || '로그인에 실패했습니다ㅇㅇ.'
+        message: error.response?.data?.message || '로그인에 실패했습니다.'
       };
     }
   },
@@ -57,14 +45,19 @@ export const adminApi = {
   getUsers: async (): Promise<ApiResponse<User[]>> => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await axios.get(`${API_URL}/api/admin/users`, {
+      const response = await axios.get(`${API_URL}/users`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
       return {
         success: true,
-        data: response.data
+        data: response.data.map((user: any) => ({
+          ...user,
+          isActive: true,
+          isWaitingForMatch: user.isWaitingForMatch || false,
+          matchedRoomId: user.matchedRoomId || null
+        }))
       };
     } catch (error: any) {
       return {
@@ -78,7 +71,7 @@ export const adminApi = {
     try {
       const token = localStorage.getItem('adminToken');
       const response = await axios.patch(
-        `${API_URL}/api/admin/users/${userId}/status`,
+        `${API_URL}/admin/users/${userId}/status`,
         { isActive },
         {
           headers: {

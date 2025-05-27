@@ -2,7 +2,7 @@
 .chatWindow {
     display: flex;
     flex-direction: column;
-    height: 95%; /* Fill available height from chatArea */
+    height: 100%; /* Fill available height from chatArea */
     background-color: #fff;
     overflow: hidden; /* Ensure messageList + inputForm don't overflow chatWindow */
 }
@@ -42,8 +42,8 @@
 
 .messageInputForm {
     display: flex;
-    padding: 12px 16px; /* Reverted from 15px 20px */
-    border-top: 1px solid #e0e0e0;
+    padding: 6px 16px; /* Reverted from 15px 20px */
+    border-top: px solid #e0e0e0;
     background-color: #f8f8f8;
 }
 
