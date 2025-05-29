@@ -86,6 +86,9 @@
     font-weight: 400;
     letter-spacing: 0;
     opacity: 0.95;
+    position: sticky;
+    top: 0;
+    z-index: 2;
 }
 .partnerLeftBanner .icon {
     font-size: 1.1em;
