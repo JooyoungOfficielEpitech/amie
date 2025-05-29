@@ -259,6 +259,13 @@ function App() {
     }
   }, [currentUserProfile]);
 
+  useEffect(() => {
+    if (currentUserProfile && currentUserProfile.gender === 'female' && isAutoSearchEnabled) {
+      setIsAutoSearchEnabled(false);
+      localStorage.setItem('isAutoSearchEnabled', 'false');
+    }
+  }, [currentUserProfile, isAutoSearchEnabled]);
+
   return (
     <CreditModalProvider>
       <AuthProvider>
@@ -298,6 +305,9 @@ function App() {
                         <MainPage 
                           onLogout={handleLogout} 
                           onCreditUpdate={fetchUserProfile}
+                          setIsAutoSearchEnabled={setIsAutoSearchEnabled}
+                          isAutoSearchEnabled={isAutoSearchEnabled}
+                          onAutoSearchChange={handleAutoSearchChange}
                         />
                       </>
                     } />

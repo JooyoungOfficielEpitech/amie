@@ -31,9 +31,12 @@ interface MainPageProps {
     onLogout: () => void;
     onCreditUpdate: () => Promise<void>;
     shouldStartMatching?: boolean;
+    setIsAutoSearchEnabled: (enabled: boolean) => void;
+    isAutoSearchEnabled: boolean;
+    onAutoSearchChange: (enabled: boolean) => void;
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false, setIsAutoSearchEnabled, isAutoSearchEnabled, onAutoSearchChange }) => {
     // 상태들
     const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
@@ -217,6 +220,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
 
         // 매칭 취소 또는 시작
         if (isMatching) {
+            setIsAutoSearchEnabled(false); // Cancel Match 시 auto search false
             setShowRippleAnimation(false);
             setIsMatching(false); // 즉시 UI 상태 업데이트
             matchSocket.emit('cancel_match');
@@ -230,11 +234,12 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
                 openCreditModal();
                 return;
             }
+            setIsAutoSearchEnabled(true); // Start Match 시 auto search true (충분할 때만)
             setIsMatching(true);
             setShowRippleAnimation(true);
             matchSocket.emit('start_match');
         }
-    }, [isSocketConnected, isMatching, matchedRoomId, contextCredit, matchSocket, openCreditModal]);
+    }, [isSocketConnected, isMatching, matchedRoomId, contextCredit, matchSocket, openCreditModal, setIsAutoSearchEnabled]);
 
     // 자동 매칭 시작 체크 - localStorage와 props를 통합하여 중복 요청 방지
     useEffect(() => {
@@ -403,6 +408,18 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             checkMatchStatus();
         }
     }, [isLoadingProfile, profile, navigate]);
+
+    // Auto Search 변경 감지
+    useEffect(() => {
+        if (isAutoSearchEnabled && !isMatching) {
+            // Auto Search가 true로 바뀌면 매칭 시작
+            handleMatchButtonClick();
+        } else if (!isAutoSearchEnabled && isMatching) {
+            // Auto Search가 false로 바뀌면 매칭 취소
+            handleMatchButtonClick();
+        }
+        // eslint-disable-next-line
+    }, [isAutoSearchEnabled]);
 
     // matchedRoomId가 있으면 아무것도 렌더하지 않음 (혹은 로딩 표시)
     if (matchedRoomId) return null;
