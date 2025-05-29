@@ -132,17 +132,16 @@ function App() {
 
           const MIN_PROFILE_PICS = 3; // Or fetch from a shared config
           if (profileImageUrls.length < MIN_PROFILE_PICS) {
-            throw new Error(`프로필 사진을 최소 ${MIN_PROFILE_PICS}개 업로드해야 합니다.`);
+              throw new Error(`프로필 사진을 최소 ${MIN_PROFILE_PICS}개 업로드해야 합니다.`);
           }
 
           // Use actual uploaded business card URL if available
           const businessCardImageUrl = finalData.gender === 'male' && finalData.businessCard
-              ? finalData.businessCard // 이제 finalData.businessCard는 string | null | undefined 타입
+              ? finalData.businessCard
               : undefined;
 
-          let response: any; // To store response from either API call
+          let response: any;
 
-          // Check if it's a social signup flow
           if (socialSignupData) {
               const socialPayload: SocialRegisterData = {
                   provider: socialSignupData.provider,
@@ -153,11 +152,10 @@ function App() {
                   city: finalData.city,
                   gender: finalData.gender,
                   profileImages: profileImageUrls,
-                  businessCardImage: businessCardImageUrl // 실제 URL 사용
+                  businessCardImage: businessCardImageUrl
               };
               response = await authApi.socialRegister(socialPayload);
           } else {
-              // Normal email signup
               const registerPayload: RegisterData = {
                   email: finalData.email,
                   password: finalData.password,
@@ -167,26 +165,40 @@ function App() {
                   city: finalData.city,
                   gender: finalData.gender,
                   profileImages: profileImageUrls,
-                  businessCardImage: businessCardImageUrl // 실제 URL 사용
+                  businessCardImage: businessCardImageUrl
               };
               response = await authApi.register(registerPayload);
           }
 
           // Handle API response (common part)
           if (response.success) { 
-              // Social signup might return token directly, normal signup might not
+              // 모든 회원가입 성공 시 자동 로그인 처리
               if (response.token) {
-                 localStorage.setItem('accessToken', response.token);
-                 localStorage.removeItem('access_token');
-                 handleLoginSuccess();
-                 
-                 // 잠시 후 크레딧 정보를 명시적으로 다시 가져오기
-                 setTimeout(async () => {
-                   await fetchUserProfile();
-                 }, 500);
+                  localStorage.setItem('accessToken', response.token);
+                  localStorage.removeItem('access_token');
+                  handleLoginSuccess(response.token);
+                  
+                  // 잠시 후 크레딧 정보를 명시적으로 다시 가져오기
+                  setTimeout(async () => {
+                      await fetchUserProfile();
+                  }, 500);
               } else {
-                 alert("회원가입 성공! 다시 로그인해주세요.");
-                 setIsLoggedIn(false); // Ensure user is logged out
+                  // 토큰이 없는 경우 로그인 시도
+                  try {
+                      const loginResponse = await authApi.login({
+                          email: finalData.email,
+                          password: finalData.password
+                      });
+                      if (loginResponse.success && loginResponse.token) {
+                          localStorage.setItem('accessToken', loginResponse.token);
+                          localStorage.removeItem('access_token');
+                          handleLoginSuccess(loginResponse.token);
+                      } else {
+                          throw new Error('자동 로그인에 실패했습니다.');
+                      }
+                  } catch (loginErr) {
+                      throw new Error('회원가입은 성공했으나 자동 로그인에 실패했습니다. 다시 로그인해주세요.');
+                  }
               }
           } else {
               throw new Error(response.message || (socialSignupData ? "소셜 회원가입 실패" : "회원가입 실패"));

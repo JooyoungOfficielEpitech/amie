@@ -137,7 +137,14 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
                     const response = await axiosInstance.post(`/chat-rooms/${currentChatRoomId}/unlock-slot`, { slotIndex: photoIndex });
                     
                     if (!response.data.success) {
-                        throw new Error(response.data.error || '사진 해제에 실패했습니다.');
+                        // 서버에서 오류가 발생한 경우
+                        if (response.data.error?.includes('채팅방') || response.data.error?.includes('상태')) {
+                            // 채팅방 상태 관련 오류인 경우에도 unlock은 유지
+                            console.warn('채팅방 상태 관련 오류가 발생했지만, 프로필은 열람 가능합니다.');
+                        } else {
+                            // 다른 오류의 경우 롤백
+                            throw new Error(response.data.error || '사진 해제에 실패했습니다.');
+                        }
                     }
                     
                     // Photo unlocked successfully
@@ -145,6 +152,13 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
                     console.error('Photo unlock API error:', err);
                     // 오류 발생 시 UI 상태 롤백
                     setUnlockedPhotos(originalUnlockStates);
+                    
+                    // 채팅방 상태 관련 오류인 경우에도 unlock은 유지
+                    if (err.response?.data?.error?.includes('채팅방') || err.response?.data?.error?.includes('상태')) {
+                        console.warn('채팅방 상태 관련 오류가 발생했지만, 프로필은 열람 가능합니다.');
+                        return;
+                    }
+                    
                     setError(err.message || '사진 잠금 해제 중 오류가 발생했습니다.');
                 }
             },
