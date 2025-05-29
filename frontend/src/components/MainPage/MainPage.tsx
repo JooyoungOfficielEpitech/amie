@@ -14,6 +14,8 @@ import MatchingBox from './MatchingBox';
 import { useNavigate } from 'react-router-dom';
 import Header from './Header';
 import { useCreditModal } from '../../contexts/CreditModalContext';
+import ReactConfetti from 'react-confetti';
+import Modal from '../common/Modal';
 
 // 매칭에 필요한 크레딧
 const REQUIRED_MATCHING_CREDIT = 10;
@@ -43,6 +45,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
     const [isWaiting, setIsWaiting] = useState<boolean>(false);
+    const [showMatchModal, setShowMatchModal] = useState(false);
     
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
@@ -117,6 +120,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             fetchCredit().catch(() => {});
             localStorage.setItem('currentChatRoomId', data.roomId);
             navigate(`/chat/${data.roomId}`);
+            setShowMatchModal(true);
+            setTimeout(() => setShowMatchModal(false), 3000);
         };
 
         const handleMatchError = (errorData: { message: string }) => {
@@ -404,6 +409,15 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
 
     return (
         <>
+            {/* 매치 성공 모달 및 빵빠레 */}
+            {showMatchModal && (
+                <Modal isOpen={showMatchModal} onClose={() => setShowMatchModal(false)} title="">
+                    <div style={{ textAlign: 'center', position: 'relative', minHeight: 200 }}>
+                        <h2 style={{ fontSize: '2em', margin: '40px 0 20px 0', color: '#FE466C' }}>We got a match!</h2>
+                        <ReactConfetti width={window.innerWidth} height={window.innerHeight} numberOfPieces={250} recycle={false} />
+                    </div>
+                </Modal>
+            )}
             <div className={styles.pageContainer}>
                 <div className={styles.contentWrapper}>
                     <Sidebar

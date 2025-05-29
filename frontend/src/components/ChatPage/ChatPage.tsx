@@ -7,6 +7,7 @@ import styles from './ChatPage.module.css';
 import { chatApi } from '../../api'; // <-- Import chatApi
 import { useParams, useNavigate } from 'react-router-dom';
 import Modal from '../common/Modal';
+import ReactConfetti from 'react-confetti';
 
 // 환경에 맞는 소켓 베이스 URL을 반환하는 함수 (SocketContext와 동일한 로직)
 const getSocketBaseUrl = () => {
@@ -50,6 +51,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
     const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true); // <-- Add loading state
     const [showNoAccessModal, setShowNoAccessModal] = useState(false);
     const [noAccessMessage, setNoAccessMessage] = useState('');
+    const [showMatchModal, setShowMatchModal] = useState(false);
 
     // Helper to check if auto search should be enabled
     const isMaleAutoSearch = () => {
@@ -126,6 +128,15 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
         };
         fetchPartnerLeft();
     }, [currentRoomId, userId]);
+
+    useEffect(() => {
+      if (roomId) {
+        if (!localStorage.getItem(`enteredRoom_${roomId}`)) {
+          setShowMatchModal(true);
+          localStorage.setItem(`enteredRoom_${roomId}`, 'true');
+        }
+      }
+    }, [roomId]);
 
     // WebSocket connection for chat
     useEffect(() => {
@@ -309,12 +320,21 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
 
     return (
         <div className={styles.pageWrapper}> 
+            {/* 매치 성공 모달 및 빵빠레 */}
+            {showMatchModal && (
+                <Modal isOpen={showMatchModal} onClose={() => setShowMatchModal(false)} title="">
+                    <div style={{ textAlign: 'center', position: 'relative', minHeight: 200 }}>
+                        <h2 style={{ fontSize: '2em', margin: '40px 0 20px 0', color: '#FE466C' }}>We got a match!</h2>
+                        <ReactConfetti width={window.innerWidth} height={window.innerHeight} numberOfPieces={250} recycle={false} />
+                    </div>
+                </Modal>
+            )}
             {/* <Header /> */}
             <div className={styles.chatPageContainer}>
                 <Sidebar
                     onLogout={onLogout}
-                    currentView={undefined}
                     matchedRoomId={currentRoomId}
+                    currentView={'chat'}
                 />
                 <main className={styles.chatArea}>
                     {isLoadingHistory && <p>채팅 기록 로딩 중...</p>} 
