@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import styles from './Header.module.css';
 import { FaCoins } from 'react-icons/fa'; // Changed icon import
 import RechargeModal from '../common/RechargeModal'; // Import RechargeModal

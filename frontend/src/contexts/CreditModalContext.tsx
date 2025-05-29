@@ -17,7 +17,6 @@ export const useCreditModal = () => {
 export const CreditModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { charge, fetchCredit } = useCredit();
-  const [isLoading, setIsLoading] = useState(false);
 
   const openCreditModal = () => setIsOpen(true);
   const closeCreditModal = () => {
@@ -27,7 +26,6 @@ export const CreditModalProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   // 실제 충전 로직
   const handleRecharge = async (amount: number) => {
-    setIsLoading(true);
     try {
       await charge({ amount, description: '크레딧 충전 (Modal)' });
       await fetchCredit();
@@ -35,8 +33,6 @@ export const CreditModalProvider: React.FC<{ children: ReactNode }> = ({ childre
     } catch (err) {
       // 에러 처리 필요시 추가
       closeCreditModal();
-    } finally {
-      setIsLoading(false);
     }
   };
 

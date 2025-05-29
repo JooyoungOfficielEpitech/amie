@@ -9,10 +9,8 @@ import { useCredit } from '../../contexts/CreditContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
-import ProfileSlideshow from './ProfileSlideshow';
 import MatchingBox from './MatchingBox';
 import { useNavigate } from 'react-router-dom';
-import Header from './Header';
 import { useCreditModal } from '../../contexts/CreditModalContext';
 import ReactConfetti from 'react-confetti';
 import Modal from '../common/Modal';
@@ -36,7 +34,7 @@ interface MainPageProps {
     onAutoSearchChange: (enabled: boolean) => void;
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false, setIsAutoSearchEnabled, isAutoSearchEnabled, onAutoSearchChange }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false, setIsAutoSearchEnabled, isAutoSearchEnabled }) => {
     // 상태들
     const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
