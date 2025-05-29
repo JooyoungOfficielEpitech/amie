@@ -88,8 +88,8 @@ export const PaymentProvider: React.FC<PaymentProviderProps> = ({ children, onCr
       setCurrentPaymentOptions(options);
       setShowInsufficientCreditsModal(true);
       
-      // 콜백은 호출하지 않고 모달만 표시
-      return false;
+      // 크레딧이 부족해도 true를 반환하여 클릭 가능하게 함
+      return true;
     }
     
     // Store payment options for later use

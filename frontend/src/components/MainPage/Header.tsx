@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import styles from './Header.module.css';
 import { FaCoins } from 'react-icons/fa'; // Changed icon import
 import RechargeModal from '../common/RechargeModal'; // Import RechargeModal
@@ -19,12 +19,12 @@ interface HeaderProps {
     onAutoSearchChange?: (enabled: boolean) => void; // Auto search 상태 변경 콜백 추가
 }
 
-const Header: React.FC<HeaderProps> = ({ 
+const Header = forwardRef<any, HeaderProps>(({ 
     creditBalance: propsCreditBalance, 
     userGender,
     isAutoSearchEnabled = false,
     onAutoSearchChange
-}) => {
+}, ref) => {
     const { credit: contextCredit, loading: creditLoading, fetchCredit, charge } = useCredit();
     const { matchSocket, isConnected } = useSocket(); // 소켓 컨텍스트 사용
     
@@ -83,6 +83,11 @@ const Header: React.FC<HeaderProps> = ({
 
     const openModal = () => setIsModalOpen(true);
     const closeModal = () => setIsModalOpen(false);
+
+    // 외부에서 openModal을 사용할 수 있도록 ref에 노출
+    useImperativeHandle(ref, () => ({
+        openModal
+    }));
 
     // Handle recharge confirmation from modal
     const handleRecharge = async (amount: number) => {
@@ -162,6 +167,6 @@ const Header: React.FC<HeaderProps> = ({
             />
         </header>
     );
-};
+});
 
 export default Header; 

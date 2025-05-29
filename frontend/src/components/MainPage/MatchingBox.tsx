@@ -14,6 +14,7 @@ interface MatchingBoxProps {
   matchError: string | null;
   onMatchButtonClick: () => void;
   isSocketConnected: boolean;
+  hasSufficientCredit: boolean;
 }
 
 const MatchingBox: React.FC<MatchingBoxProps> = ({
@@ -23,7 +24,8 @@ const MatchingBox: React.FC<MatchingBoxProps> = ({
   buttonText,
   matchError,
   onMatchButtonClick,
-  isSocketConnected
+  isSocketConnected,
+  hasSufficientCredit
 }) => {
   return (
     <section className={styles.contentBox}>
@@ -36,7 +38,9 @@ const MatchingBox: React.FC<MatchingBoxProps> = ({
       
       {/* 매칭 시작/취소 버튼 */}
       <button
-        className={`${styles.actionButton} ${isMatching ? styles.matchingActive : ''}`}
+        className={
+          `${styles.actionButton} ${isMatching ? styles.matchingActive : ''} ${!hasSufficientCredit ? styles.disabledButton : ''}`
+        }
         onClick={onMatchButtonClick}
         disabled={isButtonDisabled}
       >

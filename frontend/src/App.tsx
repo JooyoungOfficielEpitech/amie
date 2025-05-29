@@ -15,6 +15,7 @@ import { PaymentProvider } from './contexts/PaymentContext';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AdminLogin from './components/Admin/AdminLogin';
 import AdminPage from './components/Admin/AdminPage.tsx';
+import { CreditModalProvider } from './contexts/CreditModalContext';
 
 // Define type for social signup initial data
 interface InitialSocialData {
@@ -259,7 +260,7 @@ function App() {
   }, [currentUserProfile]);
 
   return (
-    <div className="app">
+    <CreditModalProvider>
       <AuthProvider>
         <CreditProvider>
           <PaymentProvider onCreditUpdate={fetchUserProfile}>
@@ -349,7 +350,7 @@ function App() {
           </PaymentProvider>
         </CreditProvider>
       </AuthProvider>
-    </div>
+    </CreditModalProvider>
   );
 }
 

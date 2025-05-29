@@ -12,6 +12,8 @@ import CentralRippleAnimation from './CentralRippleAnimation';
 import ProfileSlideshow from './ProfileSlideshow';
 import MatchingBox from './MatchingBox';
 import { useNavigate } from 'react-router-dom';
+import Header from './Header';
+import { useCreditModal } from '../../contexts/CreditModalContext';
 
 // 매칭에 필요한 크레딧
 const REQUIRED_MATCHING_CREDIT = 10;
@@ -48,6 +50,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     
     const navigate = useNavigate();
     
+    const openCreditModal = useCreditModal();
+
     // 소켓 초기화 시도했지만 연결 안될 경우 자동 새로고침
     useEffect(() => {
       if (initializationAttempted && !isSocketConnected && !isLoadingProfile) {
@@ -195,12 +199,12 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     const handleMatchButtonClick = useCallback(async () => {
         // 이미 매칭된 경우 채팅방으로 이동
         if (matchedRoomId) {
-            // 채팅방 상태 확인 없이 바로 이동
             localStorage.setItem('currentChatRoomId', matchedRoomId);
+            return;
         }
 
-        // 소켓 연결 확인
-        if (!matchSocket?.connected) {
+        // 소켓 연결 확인 (isSocketConnected만 사용)
+        if (!isSocketConnected) {
             setMatchError('매칭 서버에 연결되지 않았습니다.');
             return;
         }
@@ -211,8 +215,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             setShowRippleAnimation(false);
             setIsMatching(false); // 즉시 UI 상태 업데이트
             matchSocket.emit('cancel_match');
-            
-            // 매칭 취소 후 상태 확인
             setTimeout(() => {
                 matchSocket.emit('check_match_status');
             }, 500);
@@ -220,20 +222,19 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             // 크레딧 확인
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
                 setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
+                openCreditModal();
                 return;
             }
-            
-            // 매칭 시작과 동시에 물방울 파동 애니메이션 활성화
             setIsMatching(true);
             setShowRippleAnimation(true);
             matchSocket.emit('start_match');
         }
-    }, [matchSocket?.connected, isMatching, matchedRoomId, contextCredit]);
+    }, [isSocketConnected, isMatching, matchedRoomId, contextCredit, matchSocket, openCreditModal]);
 
     // 자동 매칭 시작 체크 - localStorage와 props를 통합하여 중복 요청 방지
     useEffect(() => {
         // 프로필이 로딩되었고 매칭된 채팅방이 없는 경우에만 실행
-        if (profile && !matchedRoomId && !isLoadingProfile && matchSocket?.connected) {
+        if (profile && !matchedRoomId && !isLoadingProfile && isSocketConnected) {
             // localStorage에서 자동 매칭 신호 확인
             const autoStartMatching = localStorage.getItem('autoStartMatching');
             
@@ -270,7 +271,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
                 }, 500); // 500ms 지연
             }
         }
-    }, [profile, matchedRoomId, isLoadingProfile, matchSocket, contextCredit, shouldStartMatching, isMatching, isWaiting]);
+    }, [profile, matchedRoomId, isLoadingProfile, isSocketConnected, contextCredit, shouldStartMatching, isMatching, isWaiting]);
 
     // 버튼 상태 관련 memoized 값들
     const buttonText = useMemo(() => 
@@ -290,12 +291,10 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     const isButtonDisabled = useMemo(() => {
         const disabled = isLoadingProfile 
           || isLoadingMatchAction 
-          || (!isSocketConnected && initializationAttempted) // 소켓 초기화 시도했는데 연결 안됨
-          || (!isMatching && !matchedRoomId && !hasSufficientCredit);
+          || (!isSocketConnected && initializationAttempted); // 소켓 초기화 시도했는데 연결 안됨
         
         return disabled;
-    }, [isLoadingProfile, isLoadingMatchAction, isSocketConnected, 
-        initializationAttempted, isMatching, matchedRoomId, hasSufficientCredit]);
+    }, [isLoadingProfile, isLoadingMatchAction, isSocketConnected, initializationAttempted]);
 
     // 크레딧 변경 감지 - 불필요한 렌더링 방지
     useEffect(() => {
@@ -404,65 +403,60 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     if (matchedRoomId) return null;
 
     return (
-        <div className={styles.pageContainer}>
-            {/* Header is now rendered in App.tsx */}
-            {/* <Header /> */}
-            <div className={styles.contentWrapper}>
-                <Sidebar
-                    onLogout={onLogout}
-                    currentView={'dashboard'}
-                    matchedRoomId={matchedRoomId}
-                />
-                <main className={styles.mainContent}>
-                    <div className={styles.mainHeader}>
-                       <img src={amieLogo} alt="Amié Logo" className={styles.mainLogo} />
-                       <p>{AppStrings.MAINPAGE_SUBTITLE}</p>
-                    </div>
+        <>
+            <div className={styles.pageContainer}>
+                <div className={styles.contentWrapper}>
+                    <Sidebar
+                        onLogout={onLogout}
+                        currentView={'dashboard'}
+                        matchedRoomId={matchedRoomId}
+                    />
+                    <main className={styles.mainContent}>
+                        <div className={styles.mainHeader}>
+                           <img src={amieLogo} alt="Amié Logo" className={styles.mainLogo} />
+                           <p>{AppStrings.MAINPAGE_SUBTITLE}</p>
+                        </div>
 
-                    {/* 프로필 카드 슬라이드쇼 추가 - 오른쪽에 배치 */}
-                    <ProfileSlideshow />
-
-                    {/* 위치 변경: 애니메이션을 화면 중앙에 배치 */}
-                    {/* Combined Loading/Error Display */}
-                    {isLoadingProfile && <p>프로필 로딩 중...</p>}
-                    {/* Display general errors (profile loading, socket connection, match errors) */}
-                    {error && !isLoadingProfile && <p className={styles.errorMessage}>{error}</p>}
-                    
-                    {/* 소켓 연결 문제 시 준비 중 메시지 표시 */}
-                    {initializationAttempted && !isSocketConnected && !isLoadingProfile && (
-                      <div className={styles.reloadButtonContainer}>
-                        <p className={styles.reloadMessage}>서버 연결 준비 중입니다. 잠시만 기다려주세요.</p>
-                      </div>
-                    )}
-
-                    {/* 매칭 시 물방울 파동 애니메이션을 컨텐츠 박스 위에 배치 */}
-                    <div style={{ position: 'relative' }}>
-                        <CentralRippleAnimation isVisible={showRippleAnimation} />
-                    
-                        {/* 프로필 로딩 완료 시 통합 매칭 박스 표시 */}
-                        {!isLoadingProfile && profile && (
-                            <MatchingBox
-                                profile={profile}
-                                isMatching={isMatching}
-                                isButtonDisabled={isButtonDisabled}
-                                matchedRoomId={matchedRoomId}
-                                buttonText={buttonText}
-                                isLoadingRoomStatus={isLoadingMatchAction}
-                                matchError={matchError}
-                                onMatchButtonClick={handleMatchButtonClick}
-                                isSocketConnected={isSocketConnected}
-                            />
+                        {isLoadingProfile && <p>프로필 로딩 중...</p>}
+                        {error && !isLoadingProfile && <p className={styles.errorMessage}>{error}</p>}
+                        
+                        {/* 소켓 연결 문제 시 준비 중 메시지 표시 */}
+                        {initializationAttempted && !isSocketConnected && !isLoadingProfile && (
+                          <div className={styles.reloadButtonContainer}>
+                            <p className={styles.reloadMessage}>서버 연결 준비 중입니다. 잠시만 기다려주세요.</p>
+                          </div>
                         )}
-                    </div>
-                    
-                    {!isLoadingProfile && !profile && !error && (
-                         <section className={styles.contentBox}>
-                             <p>프로필 정보를 불러올 수 없습니다.</p>
-                         </section>
-                     )}
-                </main>
+
+                        {/* 매칭 시 물방울 파동 애니메이션을 컨텐츠 박스 위에 배치 */}
+                        <div style={{ position: 'relative' }}>
+                            <CentralRippleAnimation isVisible={showRippleAnimation} />
+                        
+                            {/* 프로필 로딩 완료 시 통합 매칭 박스 표시 */}
+                            {!isLoadingProfile && profile && (
+                                <MatchingBox
+                                    profile={profile}
+                                    isMatching={isMatching}
+                                    isButtonDisabled={isButtonDisabled}
+                                    matchedRoomId={matchedRoomId}
+                                    buttonText={buttonText}
+                                    isLoadingRoomStatus={isLoadingMatchAction}
+                                    matchError={matchError}
+                                    onMatchButtonClick={handleMatchButtonClick}
+                                    isSocketConnected={isSocketConnected}
+                                    hasSufficientCredit={hasSufficientCredit}
+                                />
+                            )}
+                        </div>
+                        
+                        {!isLoadingProfile && !profile && !error && (
+                             <section className={styles.contentBox}>
+                                 <p>프로필 정보를 불러올 수 없습니다.</p>
+                             </section>
+                         )}
+                    </main>
+                </div>
             </div>
-        </div>
+        </>
     );
 });
 

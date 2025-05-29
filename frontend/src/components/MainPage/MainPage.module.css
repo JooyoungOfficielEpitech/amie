@@ -273,4 +273,11 @@
     background-color: #4caf50;
     color: white;
     border: 1px solid #43a047;
+}
+
+.disabledButton {
+  background-color: #cccccc !important;
+  color: #888 !important;
+  border-color: #cccccc !important;
+  cursor: pointer;
 } 

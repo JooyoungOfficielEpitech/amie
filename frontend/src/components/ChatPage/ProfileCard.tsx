@@ -165,7 +165,16 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
             // onError
             (errorMsg) => {
                 console.error('Credit payment failed:', errorMsg);
-                setError(errorMsg || CREDIT_MESSAGES.PAYMENT_FAILED);
+                // 크레딧 부족 오류인 경우 크레딧 충전 모달 표시
+                if (errorMsg?.includes('크레딧이 부족') || errorMsg?.includes('크레딧 부족')) {
+                    // 크레딧 충전 모달 표시
+                    const creditModal = document.getElementById('credit-charge-modal');
+                    if (creditModal) {
+                        creditModal.style.display = 'block';
+                    }
+                } else {
+                    setError(errorMsg || CREDIT_MESSAGES.PAYMENT_FAILED);
+                }
             }
         );
 
