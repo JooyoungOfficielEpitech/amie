@@ -16,6 +16,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import AdminLogin from './components/Admin/AdminLogin';
 import AdminPage from './components/Admin/AdminPage.tsx';
 import { useImageUpload } from './hooks/useImageUpload';
+import { RechargeModalProvider } from './contexts/RechargeModalContext';
 
 // Define type for social signup initial data
 interface InitialSocialData {
@@ -326,4 +327,10 @@ function App() {
   );
 }
 
-export default App;
+export default function WrappedApp() {
+  return (
+    <RechargeModalProvider>
+      <App />
+    </RechargeModalProvider>
+  );
+}

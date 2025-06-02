@@ -11,6 +11,7 @@ import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
 import MatchingBox from './MatchingBox';
 import { useNavigate } from 'react-router-dom';
+import { useRechargeModal } from '../../contexts/RechargeModalContext';
 
 // 매칭에 필요한 크레딧
 const REQUIRED_MATCHING_CREDIT = 10;
@@ -47,6 +48,8 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     
     const navigate = useNavigate();
     
+    const { openRechargeModal } = useRechargeModal();
+    
     // 소켓 초기화 시도했지만 연결 안될 경우 자동 새로고침
     useEffect(() => {
       if (initializationAttempted && !isSocketConnected && !isLoadingProfile) {
@@ -61,7 +64,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     // CreditContext 구독
     const { credit: contextCredit, fetchCredit } = useCredit();
 
-    usePayment();
+    const { requestMatchPayment } = usePayment();
 
     // 중복된 소켓 연결 로직을 제거하고 SocketContext의 소켓을 사용
     useEffect(() => {
@@ -192,42 +195,33 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
 
     // 매칭 버튼 클릭 핸들러 최적화
     const handleMatchButtonClick = useCallback(async () => {
-        // 이미 매칭된 경우 채팅방으로 이동
         if (matchedRoomId) {
-            // 채팅방 상태 확인 없이 바로 이동
             localStorage.setItem('currentChatRoomId', matchedRoomId);
         }
 
-        // 소켓 연결 확인
         if (!matchSocket?.connected) {
             setMatchError('매칭 서버에 연결되지 않았습니다.');
             return;
         }
         setMatchError(null);
 
-        // 매칭 취소 또는 시작
         if (isMatching) {
             setShowRippleAnimation(false);
-            setIsMatching(false); // 즉시 UI 상태 업데이트
+            setIsMatching(false);
             matchSocket.emit('cancel_match');
-            
-            // 매칭 취소 후 상태 확인
             setTimeout(() => {
                 matchSocket.emit('check_match_status');
             }, 500);
         } else {
-            // 크레딧 확인
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
-                setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
+                openRechargeModal(); // 이제 글로벌 충전 모달을 바로 띄움
                 return;
             }
-            
-            // 매칭 시작과 동시에 물방울 파동 애니메이션 활성화
             setIsMatching(true);
             setShowRippleAnimation(true);
             matchSocket.emit('start_match');
         }
-    }, [matchSocket?.connected, isMatching, matchedRoomId, contextCredit]);
+    }, [matchSocket?.connected, isMatching, matchedRoomId, contextCredit, openRechargeModal]);
 
     // 자동 매칭 시작 체크 - localStorage와 props를 통합하여 중복 요청 방지
     useEffect(() => {
@@ -289,12 +283,10 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     const isButtonDisabled = useMemo(() => {
         const disabled = isLoadingProfile 
           || isLoadingMatchAction 
-          || (!isSocketConnected && initializationAttempted) // 소켓 초기화 시도했는데 연결 안됨
-          || (!isMatching && !matchedRoomId && !hasSufficientCredit);
+          || (!isSocketConnected && initializationAttempted); // 소켓 초기화 시도했는데 연결 안됨
         
         return disabled;
-    }, [isLoadingProfile, isLoadingMatchAction, isSocketConnected, 
-        initializationAttempted, isMatching, matchedRoomId, hasSufficientCredit]);
+    }, [isLoadingProfile, isLoadingMatchAction, isSocketConnected, initializationAttempted]);
 
     // 크레딧 변경 감지 - 불필요한 렌더링 방지
     useEffect(() => {
