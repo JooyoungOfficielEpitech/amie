@@ -24,8 +24,7 @@ export const RechargeModalProvider: React.FC<RechargeModalProviderProps> = ({ ch
     setIsOpen(false);
     try {
       await charge({ amount, description: '크레딧 충전 (RechargeModal)' });
-      await fetchCredit();
-      // alert('충전이 완료되었습니다!'); // 필요시 알림
+      window.location.reload(); // 충전 성공 시 새로고침
     } catch (err: any) {
       alert('충전 실패: ' + (err.message || '')); // 필요시 에러 알림
     }

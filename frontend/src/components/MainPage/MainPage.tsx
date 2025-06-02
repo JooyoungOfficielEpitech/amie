@@ -214,8 +214,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             }, 500);
         } else {
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
-                openRechargeModal(); // 이제 글로벌 충전 모달을 바로 띄움
-                return;
+                openRechargeModal();
             }
             setIsMatching(true);
             setShowRippleAnimation(true);
