@@ -18,7 +18,7 @@ interface RechargeModalProviderProps {
 
 export const RechargeModalProvider: React.FC<RechargeModalProviderProps> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { charge, fetchCredit } = useCredit();
+  const { charge } = useCredit();
 
   const handleConfirm = async (amount: number) => {
     setIsOpen(false);

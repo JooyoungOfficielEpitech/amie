@@ -64,7 +64,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     // CreditContext 구독
     const { credit: contextCredit, fetchCredit } = useCredit();
 
-    const { requestMatchPayment } = usePayment();
+    usePayment();
 
     // 중복된 소켓 연결 로직을 제거하고 SocketContext의 소켓을 사용
     useEffect(() => {
@@ -275,7 +275,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             : AppStrings.MAINPAGE_START_MATCHING_BUTTON,
     [isLoadingMatchAction, matchedRoomId, isMatching]);
     
-    const hasSufficientCredit = useMemo(() => 
+    useMemo(() => 
         contextCredit >= REQUIRED_MATCHING_CREDIT,
     [contextCredit]);
     
