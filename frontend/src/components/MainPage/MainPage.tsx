@@ -418,14 +418,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
                        <img src={amieLogo} alt="Amié Logo" className={styles.mainLogo} />
                        <p>{AppStrings.MAINPAGE_SUBTITLE}</p>
                     </div>
-
-                    {/* 프로필 카드 슬라이드쇼 추가 - 오른쪽에 배치 */}
-                    <ProfileSlideshow />
-
-                    {/* 위치 변경: 애니메이션을 화면 중앙에 배치 */}
-                    {/* Combined Loading/Error Display */}
                     {isLoadingProfile && <p>프로필 로딩 중...</p>}
-                    {/* Display general errors (profile loading, socket connection, match errors) */}
                     {error && !isLoadingProfile && <p className={styles.errorMessage}>{error}</p>}
                     
                     {/* 소켓 연결 문제 시 준비 중 메시지 표시 */}

@@ -193,7 +193,7 @@ export const unlockPhotoSlot = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: '채팅방을 찾을 수 없습니다.' });
     }
 
-    if (chatRoom.user1Left || chatRoom.user2Left) {
+    if (chatRoom.user1Left && chatRoom.user2Left) {
       return res.status(400).json({ success: false, error: '비활성화된 채팅방입니다.' });
     }
 

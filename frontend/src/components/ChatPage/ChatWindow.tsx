@@ -57,14 +57,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, curren
 
     return (
         <div className={styles.chatWindow}>
+            {isPartnerDisconnected && (
+              <div className={styles.partnerLeftBanner}>
+                <span>
+                  <span className={styles.highlight}>Partner</span> left the chat
+                </span>
+              </div>
+            )}
             <div ref={messageListRef} className={styles.messageList}>
-                {isPartnerDisconnected && (
-                  <div className={styles.partnerLeftBanner}>
-                    <span>
-                      <span className={styles.highlight}>Partner</span> left the chat
-                    </span>
-                  </div>
-                )}
                 {messages.map((msg) => {
                     const isMyMessage = msg.senderId === currentUserId;
 
@@ -74,7 +74,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSendMessage, curren
                         </div>
                     );
                 })}
-                 {/* Add scroll anchoring logic later */}
             </div>
             <form onSubmit={handleSendMessage} className={styles.messageInputForm}>
                 <input

@@ -313,7 +313,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
             <div className={styles.chatPageContainer}>
                 <Sidebar
                     onLogout={onLogout}
-                    currentView={undefined}
+                    currentView={'chat'}
                     matchedRoomId={currentRoomId}
                 />
                 <main className={styles.chatArea}>

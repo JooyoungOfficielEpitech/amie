@@ -48,6 +48,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
     const [matchedUser, setMatchedUser] = useState<MatchedUserInfo | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showUnlockCelebration, setShowUnlockCelebration] = useState(false);
+    const [unlockedPhotoIndex, setUnlockedPhotoIndex] = useState<number | null>(null);
 
     // usePayment 훅 사용
     const { requestProfileUnlockPayment } = usePayment();
@@ -120,12 +122,10 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
     }, [roomId]); // roomId prop 변경 시 재실행
 
     const handleUnlockPhoto = async (index: number) => {
-        if (!currentChatRoomId || !matchedUser || unlockedPhotos[index]) return; // 이미 해제되었거나 정보 없으면 실행 안 함
+        if (!currentChatRoomId || !matchedUser || unlockedPhotos[index]) return;
         
-        // 크레딧 결제 요청 (5 크레딧 사용)
         const paymentRequested = requestProfileUnlockPayment(
             index,
-            // onSuccess
             async (photoIndex) => {
                 const originalUnlockStates = [...unlockedPhotos];
                 const newUnlockStates = [...originalUnlockStates];
@@ -133,22 +133,27 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
                 setUnlockedPhotos(newUnlockStates);
                 
                 try {
-                    // API 호출하여 서버에 잠금 해제 상태 저장
                     const response = await axiosInstance.post(`/chat-rooms/${currentChatRoomId}/unlock-slot`, { slotIndex: photoIndex });
                     
                     if (!response.data.success) {
                         throw new Error(response.data.error || '사진 해제에 실패했습니다.');
                     }
                     
-                    // Photo unlocked successfully
+                    // Show celebration modal
+                    setUnlockedPhotoIndex(photoIndex);
+                    setShowUnlockCelebration(true);
+                    // Auto hide after 3 seconds
+                    setTimeout(() => {
+                        setShowUnlockCelebration(false);
+                        setUnlockedPhotoIndex(null);
+                    }, 1500);
+                    
                 } catch (err: any) {
                     console.error('Photo unlock API error:', err);
-                    // 오류 발생 시 UI 상태 롤백
                     setUnlockedPhotos(originalUnlockStates);
                     setError(err.message || '사진 잠금 해제 중 오류가 발생했습니다.');
                 }
             },
-            // onError
             (errorMsg) => {
                 console.error('Credit payment failed:', errorMsg);
                 setError(errorMsg || CREDIT_MESSAGES.PAYMENT_FAILED);
@@ -157,7 +162,6 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
 
         if (!paymentRequested) {
             console.error('크레딧 결제 요청에 실패했습니다.');
-            // Error already handled by onError callback
         }
     };
 
@@ -240,6 +244,21 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ chatSocket, roomId }) => {
         >
             {/* Updated inner content structure */}
             <aside className={styles.profileCard} style={{ width: '100%', height: '100%' }}>
+                {/* Celebration Modal */}
+                {showUnlockCelebration && unlockedPhotoIndex !== null && matchedUser && (
+                    <div className={styles.celebrationModal}>
+                        <div className={styles.celebrationContent}>
+                            <h2>Profile Unlocked! 🎉</h2>
+                            <div className={styles.unlockedPhotoPreview}>
+                                <img
+                                    src={matchedUser.profileImages[unlockedPhotoIndex]}
+                                    alt={`Unlocked profile photo ${unlockedPhotoIndex + 1}`}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
                 {/* Photo Grid */}
                 <div className={styles.photoGrid}>
                     {matchedUser.profileImages.map((photoUrl, index) => (

@@ -15,6 +15,7 @@ import { PaymentProvider } from './contexts/PaymentContext';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AdminLogin from './components/Admin/AdminLogin';
 import AdminPage from './components/Admin/AdminPage.tsx';
+import { useImageUpload } from './hooks/useImageUpload';
 
 // Define type for social signup initial data
 interface InitialSocialData {
@@ -35,6 +36,8 @@ function App() {
     const savedState = localStorage.getItem('isAutoSearchEnabled');
     return savedState === 'true';
   });
+
+  const { uploadImage } = useImageUpload({ userId: null, folderPath: 'profile' });
 
   // isAutoSearchEnabled 변경될 때마다 로그 출력 및 localStorage에 저장
   useEffect(() => {
@@ -118,90 +121,72 @@ function App() {
 
   // Unified function to handle signup completion (both normal and social)
   const handleSignupComplete = async (finalData: SignupData) => {
-      setIsLoading(true);
-      setError(null);
+    try {
+      // Convert date string to birthYear
+      const birthYear = new Date(finalData.dob).getFullYear();
+      const height = parseInt(finalData.height);
 
-      try {
-          const birthYear = parseInt(finalData.dob, 10);
-          const height = parseInt(finalData.height, 10);
-          if (isNaN(birthYear) || isNaN(height) || !finalData.gender || (finalData.gender !== 'male' && finalData.gender !== 'female')) {
-              throw new Error("입력된 프로필 정보가 유효하지 않습니다.");
-          }
-          // Use actual uploaded image URLs, filtering out any nulls
-          const profileImageUrls = finalData.profilePics.filter(url => url !== null) as string[];
+      // Filter out null values from profilePics
+      const profileImageUrls = finalData.profilePics.filter((url): url is string => url !== null);
 
-          const MIN_PROFILE_PICS = 3; // Or fetch from a shared config
-          if (profileImageUrls.length < MIN_PROFILE_PICS) {
-            throw new Error(`프로필 사진을 최소 ${MIN_PROFILE_PICS}개 업로드해야 합니다.`);
-          }
+      // Get business card URL if it exists and user is male
+      const businessCardImageUrl = finalData.gender === 'male' ? finalData.businessCard || undefined : undefined;
 
-          // Use actual uploaded business card URL if available
-          const businessCardImageUrl = finalData.gender === 'male' && finalData.businessCard
-              ? finalData.businessCard // 이제 finalData.businessCard는 string | null | undefined 타입
-              : undefined;
+      let response; // To store response from either API call
 
-          let response: any; // To store response from either API call
-
-          // Check if it's a social signup flow
-          if (socialSignupData) {
-              const socialPayload: SocialRegisterData = {
-                  provider: socialSignupData.provider,
-                  socialEmail: socialSignupData.socialEmail,
-                  nickname: finalData.nickname,
-                  birthYear: birthYear,
-                  height: height,
-                  city: finalData.city,
-                  gender: finalData.gender,
-                  profileImages: profileImageUrls,
-                  businessCardImage: businessCardImageUrl // 실제 URL 사용
-              };
-              response = await authApi.socialRegister(socialPayload);
-          } else {
-              // Normal email signup
-              const registerPayload: RegisterData = {
-                  email: finalData.email,
-                  password: finalData.password,
-                  nickname: finalData.nickname,
-                  birthYear: birthYear,
-                  height: height,
-                  city: finalData.city,
-                  gender: finalData.gender,
-                  profileImages: profileImageUrls,
-                  businessCardImage: businessCardImageUrl // 실제 URL 사용
-              };
-              response = await authApi.register(registerPayload);
-          }
-
-          // Handle API response (common part)
-          if (response.success) { 
-              // Social signup might return token directly, normal signup might not
-              if (response.token) {
-                 localStorage.setItem('accessToken', response.token);
-                 localStorage.removeItem('access_token');
-                 handleLoginSuccess();
-                 
-                 // 잠시 후 크레딧 정보를 명시적으로 다시 가져오기
-                 setTimeout(async () => {
-                   await fetchUserProfile();
-                 }, 500);
-              } else {
-                 alert("회원가입 성공! 다시 로그인해주세요.");
-                 setIsLoggedIn(false); // Ensure user is logged out
-              }
-          } else {
-              throw new Error(response.message || (socialSignupData ? "소셜 회원가입 실패" : "회원가입 실패"));
-          }
-
-      } catch (err: any) {
-          console.error("회원가입 처리 중 오류 발생:", err);
-          const errorMessage = err.response?.data?.message || err.message || "알 수 없는 오류가 발생했습니다.";
-          setError(errorMessage);
-          alert(`회원가입 오류: ${errorMessage}`);
-      } finally {
-          setIsLoading(false);
-          setShowSignupFlow(false); // Close signup flow on completion/error
-          setSocialSignupData(null); // Reset social signup data
+      // Check if it's a social signup flow
+      if (socialSignupData) {
+        const socialPayload: SocialRegisterData = {
+          provider: socialSignupData.provider,
+          socialEmail: socialSignupData.socialEmail,
+          nickname: finalData.nickname,
+          birthYear: birthYear,
+          height: height,
+          city: finalData.city,
+          gender: finalData.gender as 'male' | 'female',
+          profileImages: profileImageUrls,
+          businessCardImage: businessCardImageUrl
+        };
+        response = await authApi.socialRegister(socialPayload);
+      } else {
+        // Normal email signup
+        const registerPayload: RegisterData = {
+          email: finalData.email,
+          password: finalData.password,
+          nickname: finalData.nickname,
+          birthYear: birthYear,
+          height: height,
+          city: finalData.city,
+          gender: finalData.gender as 'male' | 'female',
+          profileImages: profileImageUrls,
+          businessCardImage: businessCardImageUrl
+        };
+        response = await authApi.register(registerPayload);
       }
+
+      if (response.success) {
+        // Automatically log in after successful registration
+        const loginResponse = await authApi.login({
+          email: finalData.email,
+          password: finalData.password
+        });
+
+        if (loginResponse.success && loginResponse.token) {
+          localStorage.setItem('accessToken', loginResponse.token);
+          setIsLoggedIn(true);
+          setShowSignupFlow(false);
+          setSocialSignupData(null);
+          await fetchUserProfile(); // Fetch user profile after login
+        } else {
+          throw new Error('자동 로그인에 실패했습니다.');
+        }
+      } else {
+        throw new Error(response.message || '회원가입에 실패했습니다.');
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      alert(error.message || '회원가입 중 오류가 발생했습니다.');
+    }
   };
 
   // Function to cancel/close signup flow
