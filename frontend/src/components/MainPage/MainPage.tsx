@@ -9,7 +9,6 @@ import { useCredit } from '../../contexts/CreditContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
-import ProfileSlideshow from './ProfileSlideshow';
 import MatchingBox from './MatchingBox';
 import { useNavigate } from 'react-router-dom';
 

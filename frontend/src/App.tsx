@@ -26,7 +26,7 @@ interface InitialSocialData {
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [showSignupFlow, setShowSignupFlow] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [socialSignupData, setSocialSignupData] = useState<InitialSocialData | null>(null);
   const [currentChatRoomId, setCurrentChatRoomId] = useState<string | null>(null);
@@ -37,7 +37,7 @@ function App() {
     return savedState === 'true';
   });
 
-  const { uploadImage } = useImageUpload({ userId: null, folderPath: 'profile' });
+  useImageUpload({ userId: null, folderPath: 'profile' });
 
   // isAutoSearchEnabled 변경될 때마다 로그 출력 및 localStorage에 저장
   useEffect(() => {
