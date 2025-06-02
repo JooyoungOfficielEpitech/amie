@@ -7,6 +7,7 @@ import styles from './ChatPage.module.css';
 import { chatApi } from '../../api'; // <-- Import chatApi
 import { useParams, useNavigate } from 'react-router-dom';
 import Modal from '../common/Modal';
+import MatchSuccessModal from './MatchSuccessModal';
 
 // 환경에 맞는 소켓 베이스 URL을 반환하는 함수 (SocketContext와 동일한 로직)
 const getSocketBaseUrl = () => {
@@ -50,6 +51,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
     const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true); // <-- Add loading state
     const [showNoAccessModal, setShowNoAccessModal] = useState(false);
     const [noAccessMessage, setNoAccessMessage] = useState('');
+    const [showMatchSuccessModal, setShowMatchSuccessModal] = useState<boolean>(false);
 
     // Helper to check if auto search should be enabled
     const isMaleAutoSearch = () => {
@@ -76,6 +78,12 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
             return;
         } else {
             localStorage.setItem('currentChatRoomId', roomId);
+            // 채팅방에 처음 입장할 때 매치 성공 모달 표시
+            const hasShownModal = localStorage.getItem(`matchSuccessModal_${roomId}`);
+            if (!hasShownModal) {
+                setShowMatchSuccessModal(true);
+                localStorage.setItem(`matchSuccessModal_${roomId}`, 'true');
+            }
         }
     }, [roomId, navigate]);
 
@@ -338,13 +346,17 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
                 isOpen={showNoAccessModal}
                 onClose={() => {
                     setShowNoAccessModal(false);
-                    navigate('/'); // 메인 페이지로 이동
+                    navigate('/');
                 }}
                 title="채팅방 접근 불가"
             >
                 <p>{noAccessMessage}</p>
                 <button onClick={() => { setShowNoAccessModal(false); navigate('/'); }}>확인</button>
             </Modal>
+            <MatchSuccessModal
+                isOpen={showMatchSuccessModal}
+                onClose={() => setShowMatchSuccessModal(false)}
+            />
         </div>
     );
 };
