@@ -355,7 +355,12 @@ const ChatPage: React.FC<ChatPageProps> = ({ onLogout, userId, onCreditUpdate })
             </Modal>
             <MatchSuccessModal
                 isOpen={showMatchSuccessModal}
-                onClose={() => setShowMatchSuccessModal(false)}
+                onClose={() => {
+                    setShowMatchSuccessModal(false);
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 0);
+                }}
             />
         </div>
     );

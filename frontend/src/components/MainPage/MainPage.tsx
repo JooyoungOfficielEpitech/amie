@@ -7,6 +7,7 @@ import * as AppStrings from '../../constants/strings';
 import { usePayment } from '../../contexts/PaymentContext';
 import { useCredit } from '../../contexts/CreditContext';
 import { useSocket } from '../../contexts/SocketContext';
+import { useMatch } from '../../contexts/MatchContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
 import MatchingBox from './MatchingBox';
@@ -27,9 +28,11 @@ interface MainPageProps {
     onLogout: () => void;
     onCreditUpdate: () => Promise<void>;
     shouldStartMatching?: boolean;
+    isAutoSearchEnabled?: boolean;
+    onAutoSearchChange?: (enabled: boolean) => void;
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false, isAutoSearchEnabled, onAutoSearchChange }) => {
     // 상태들
     const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
@@ -41,6 +44,7 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
     const [isWaiting, setIsWaiting] = useState<boolean>(false);
+    const { setIsAutoMatchEnabled } = useMatch();
     
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
@@ -209,18 +213,31 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
             setShowRippleAnimation(false);
             setIsMatching(false);
             matchSocket.emit('cancel_match');
+            // 매칭 취소 시 auto search도 비활성화
+            if (profile?.gender === 'male') {
+                localStorage.setItem('isAutoMatchEnabled', 'false');
+                matchSocket.emit('toggle_match', { isEnabled: false });
+                if (onAutoSearchChange) onAutoSearchChange(false);
+            }
             setTimeout(() => {
                 matchSocket.emit('check_match_status');
             }, 500);
         } else {
             if (contextCredit < REQUIRED_MATCHING_CREDIT) {
                 openRechargeModal();
+                return;
             }
             setIsMatching(true);
             setShowRippleAnimation(true);
             matchSocket.emit('start_match');
+            // 매칭 시작 시 auto search도 활성화
+            if (profile?.gender === 'male') {
+                localStorage.setItem('isAutoMatchEnabled', 'true');
+                matchSocket.emit('toggle_match', { isEnabled: true });
+                if (onAutoSearchChange) onAutoSearchChange(true);
+            }
         }
-    }, [matchSocket?.connected, isMatching, matchedRoomId, contextCredit, openRechargeModal]);
+    }, [matchSocket?.connected, isMatching, matchedRoomId, contextCredit, openRechargeModal, profile?.gender, onAutoSearchChange]);
 
     // 자동 매칭 시작 체크 - localStorage와 props를 통합하여 중복 요청 방지
     useEffect(() => {

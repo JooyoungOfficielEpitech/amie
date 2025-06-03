@@ -271,6 +271,8 @@ function App() {
                         <MainPage 
                           onLogout={handleLogout} 
                           onCreditUpdate={fetchUserProfile}
+                          isAutoSearchEnabled={isAutoSearchEnabled}
+                          onAutoSearchChange={handleAutoSearchChange}
                         />
                       </>
                     } />
