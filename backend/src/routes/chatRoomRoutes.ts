@@ -1,12 +1,12 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
 import * as chatRoomController from '../controllers/chatRoomController';
 import { protect } from '../middleware/userAuthMiddleware';
+import asyncHandler from '../middleware/asyncHandler';
 
 const router = express.Router();
 
 // 모든 채팅방 관련 라우트에 인증 적용
-router.use(protect as RequestHandler);
+router.use(protect as express.RequestHandler);
 
 /**
  * @swagger
@@ -75,7 +75,7 @@ router.use(protect as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/', chatRoomController.createChatRoom as unknown as RequestHandler);
+router.post('/', asyncHandler(chatRoomController.createChatRoom));
 
 /**
  * @swagger
@@ -126,7 +126,7 @@ router.post('/', chatRoomController.createChatRoom as unknown as RequestHandler)
  *       500:
  *         description: 서버 오류
  */
-router.get('/user/:userId', chatRoomController.getUserChatRooms as unknown as RequestHandler);
+router.get('/user/:userId', asyncHandler(chatRoomController.getUserChatRooms));
 
 /**
  * @swagger
@@ -175,7 +175,7 @@ router.get('/user/:userId', chatRoomController.getUserChatRooms as unknown as Re
  *       500:
  *         description: 서버 오류
  */
-router.get('/:roomId', chatRoomController.getChatRoom as unknown as RequestHandler);
+router.get('/:roomId', asyncHandler(chatRoomController.getChatRoom));
 
 /**
  * @swagger
@@ -213,7 +213,7 @@ router.get('/:roomId', chatRoomController.getChatRoom as unknown as RequestHandl
  *       500:
  *         description: 서버 오류
  */
-router.put('/:roomId/deactivate', chatRoomController.deactivateChatRoom as unknown as RequestHandler);
+router.put('/:roomId/deactivate', asyncHandler(chatRoomController.deactivateChatRoom));
 
 /**
  * @swagger
@@ -280,6 +280,6 @@ router.put('/:roomId/deactivate', chatRoomController.deactivateChatRoom as unkno
  *       500:
  *         description: 서버 오류
  */
-router.post('/:roomId/unlock-slot', chatRoomController.unlockPhotoSlot as unknown as RequestHandler);
+router.post('/:roomId/unlock-slot', asyncHandler(chatRoomController.unlockPhotoSlot));
 
 export default router; 

@@ -3,6 +3,9 @@ import Message from '../models/Message';
 import ChatRoom from '../models/ChatRoom';
 import User from '../models/User';
 import jwt from 'jsonwebtoken';
+import { ConnectionRegistry } from '../services/connectionRegistry';
+import { publishEvent, subscribeToChannel, CHANNELS } from '../services/redis.service';
+import { randomUUID } from 'crypto';
 
 // 소켓에 사용자 정보를 추가하는 인터페이스
 interface UserSocket extends Socket {
@@ -16,6 +19,9 @@ export class ChatGateway {
   private socketUserMap = new Map<string, string>();
   private userSocketsMap = new Map<string, Set<string>>();
   
+  // 인스턴스 식별자 (Redis 이벤트 루프백 방지)
+  private instanceId: string = randomUUID();
+  
   constructor(private io: Server) {
     this.initialize();
   }
@@ -24,6 +30,9 @@ export class ChatGateway {
   private initialize() {
     // 채팅 네임스페이스 설정
     const chatNamespace = this.io.of('/chat');
+
+    // Redis 이벤트 구독 (다른 인스턴스 → 소켓 브로드캐스트)
+    this.subscribeToRedisEvents();
 
     // --- Authentication Middleware for /chat namespace --- 
     chatNamespace.use(async (socket: UserSocket, next) => {
@@ -56,6 +65,11 @@ export class ChatGateway {
                 this.userSocketsMap.set(userId, new Set());
             }
             this.userSocketsMap.get(userId)?.add(socket.id);
+            
+            // Redis 레지스트리에 저장
+            ConnectionRegistry.mapSocketToUser(socket.id, userId).catch(err => {
+              console.error('[ChatGateway] ConnectionRegistry map 오류:', err);
+            });
             
             socket.userInfo = {
                 id: userId,
@@ -112,16 +126,27 @@ export class ChatGateway {
       socket.on('disconnect', () => {
         console.log(`User disconnected from chat: ${socket.userId}`);
         if (socket.userId) {
+          // 맵 정리
+          this.socketUserMap.delete(socket.id);
+
+          const set = this.userSocketsMap.get(socket.userId);
+          if (set) {
+            set.delete(socket.id);
+            if (set.size === 0) this.userSocketsMap.delete(socket.userId);
+          }
+
           // 소켓이 참여하고 있던 방 목록 (자신의 ID 제외)
           const rooms = Array.from(socket.rooms).filter(room => room !== socket.id);
-          
           rooms.forEach(roomId => {
-            // 해당 방에 있는 다른 사용자들에게 알림
             socket.to(roomId).emit('user-disconnected', {
               roomId,
               userId: socket.userId
             });
-            console.log(`Notified room ${roomId} about user ${socket.userId} disconnection.`);
+          });
+
+          // Redis 레지스트리 정리
+          ConnectionRegistry.unmapSocket(socket.id).catch(err => {
+            console.error('[ChatGateway] ConnectionRegistry unmap 오류:', err);
           });
         } else {
           console.log('Disconnected socket had no userId.');
@@ -245,10 +270,9 @@ export class ChatGateway {
       const otherParticipantId = chatRoom.user1Id === userId ? chatRoom.user2Id : chatRoom.user1Id;
       if (otherParticipantId) {
         console.log(`[handleLeaveChat] Emitting 'partner_left' to room ${roomIdStr} (otherParticipantId: ${otherParticipantId})`);
-        this.io.of('/chat').to(roomIdStr).emit('partner_left', { 
-          roomId: roomIdStr,
-          userId: otherParticipantId
-        });
+        const leftData = { roomId: roomIdStr, userId: otherParticipantId };
+        this.io.of('/chat').to(roomIdStr).emit('partner_left', leftData);
+        publishEvent(CHANNELS.CHAT_PARTNER_LEFT, { origin: this.instanceId, chatRoomId: roomIdStr, data: leftData });
       }
     } catch (error) {
       console.error('[handleLeaveChat] Error:', error, { roomId, userId: socket.userId });
@@ -326,8 +350,7 @@ export class ChatGateway {
       
       await newMessage.save();
       
-      // 채팅방의 모든 참여자에게 메시지 브로드캐스트
-      this.io.of('/chat').to(chatRoomId).emit('new-message', {
+      const messagePayload = {
         _id: newMessage._id,
         chatRoomId,
         senderId: socket.userId,
@@ -335,7 +358,13 @@ export class ChatGateway {
         senderGender: userInfo?.gender,
         message: newMessage.message,
         createdAt: newMessage.createdAt
-      });
+      };
+
+      // 로컬 브로드캐스트
+      this.io.of('/chat').to(chatRoomId).emit('new-message', messagePayload);
+
+      // Redis publish (다른 인스턴스)
+      publishEvent(CHANNELS.CHAT_NEW_MESSAGE, { origin: this.instanceId, chatRoomId, data: messagePayload });
       
       // 채팅방 마지막 업데이트 시간 갱신
       await ChatRoom.findByIdAndUpdate(chatRoomId, { updatedAt: new Date() });
@@ -345,32 +374,108 @@ export class ChatGateway {
     }
   }
 
+  // 채팅방 존재 및 참여 여부 검증 유틸리티
+  private async isUserParticipant(chatRoomId: string, userId: string): Promise<boolean> {
+    try {
+      const chatRoom = await ChatRoom.findOne({
+        _id: chatRoomId,
+        $or: [
+          { user1Id: userId, user1Left: false },
+          { user2Id: userId, user2Left: false }
+        ]
+      }).select('_id');
+      return !!chatRoom;
+    } catch (error) {
+      console.error('[ChatGateway] 채팅방 검증 중 오류:', error);
+      return false;
+    }
+  }
+
   // 타이핑 중 상태 처리
-  private handleTyping(socket: UserSocket, data: { chatRoomId: string, isTyping: boolean }) {
+  private async handleTyping(socket: UserSocket, data: { chatRoomId: string, isTyping: boolean }) {
     if (!socket.userId) return;
-    
     const { chatRoomId, isTyping } = data;
-    
-    // 자신을 제외한 채팅방의 모든 사용자에게 타이핑 상태 전송
-    socket.to(chatRoomId).emit('user-typing', {
+
+    // 참여 여부 검증
+    const isParticipant = await this.isUserParticipant(chatRoomId, socket.userId);
+    if (!isParticipant) {
+      console.warn(`[ChatGateway] 타이핑 이벤트 - 권한 없음: room=${chatRoomId}, user=${socket.userId}`);
+      socket.emit('error', { message: '채팅방 참여 권한이 없습니다.' });
+      return;
+    }
+    const typingData = {
       chatRoomId,
       userId: socket.userId,
       nickname: socket.userInfo?.nickname,
       isTyping
-    });
+    };
+
+    // 로컬 전파
+    socket.to(chatRoomId).emit('user-typing', typingData);
+
+    // Redis publish
+    publishEvent(CHANNELS.CHAT_USER_TYPING, { origin: this.instanceId, chatRoomId, data: typingData });
   }
 
   // 메시지 읽음 상태 처리
-  private handleReadMessages(socket: UserSocket, data: { chatRoomId: string }) {
+  private async handleReadMessages(socket: UserSocket, data: { chatRoomId: string }) {
     if (!socket.userId) return;
-    
     const { chatRoomId } = data;
-    
-    // 채팅방의 다른 사용자에게 메시지 읽음 상태 알림
-    socket.to(chatRoomId).emit('messages-read', {
+
+    // 참여 여부 검증
+    const isParticipant = await this.isUserParticipant(chatRoomId, socket.userId);
+    if (!isParticipant) {
+      console.warn(`[ChatGateway] 읽음 이벤트 - 권한 없음: room=${chatRoomId}, user=${socket.userId}`);
+      socket.emit('error', { message: '채팅방 참여 권한이 없습니다.' });
+      return;
+    }
+    const readData = {
       chatRoomId,
       userId: socket.userId,
       readAt: new Date()
+    };
+
+    socket.to(chatRoomId).emit('messages-read', readData);
+
+    publishEvent(CHANNELS.CHAT_MESSAGES_READ, { origin: this.instanceId, chatRoomId, data: readData });
+  }
+
+  // Redis 구독: 다른 인스턴스에서 온 채팅 이벤트 처리
+  private subscribeToRedisEvents() {
+    const relay = (channelKey: string, handler: (data: any) => void) => {
+      subscribeToChannel(channelKey, (message) => {
+        try {
+          const parsed = JSON.parse(message);
+          if (parsed.origin === this.instanceId) return; // 내 이벤트 무시
+          handler(parsed);
+        } catch (err) {
+          console.error('[ChatGateway] Redis 메시지 파싱 오류:', err);
+        }
+      });
+    };
+
+    // 새 메시지
+    relay(CHANNELS.CHAT_NEW_MESSAGE, (payload) => {
+      const { chatRoomId, data } = payload;
+      this.io.of('/chat').to(chatRoomId).emit('new-message', data);
+    });
+
+    // 타이핑
+    relay(CHANNELS.CHAT_USER_TYPING, (payload) => {
+      const { chatRoomId, data } = payload;
+      this.io.of('/chat').to(chatRoomId).emit('user-typing', data);
+    });
+
+    // 읽음
+    relay(CHANNELS.CHAT_MESSAGES_READ, (payload) => {
+      const { chatRoomId, data } = payload;
+      this.io.of('/chat').to(chatRoomId).emit('messages-read', data);
+    });
+
+    // 파트너 나감
+    relay(CHANNELS.CHAT_PARTNER_LEFT, (payload) => {
+      const { chatRoomId, data } = payload;
+      this.io.of('/chat').to(chatRoomId).emit('partner_left', data);
     });
   }
 } 

@@ -2,6 +2,13 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { createAdapter } from '@socket.io/redis-adapter';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { createClient } from 'redis';
+import { logger } from '../utils/logger';
 
 interface UserSocket extends Socket {
   userId?: string;
@@ -20,6 +27,20 @@ export const initSocketServer = (httpServer: HttpServer) => {
     pingInterval: 25000, // 핑 간격을 25초로 설정 (기본값보다 증가)
     connectTimeout: 30000 // 연결 타임아웃 30초
   });
+
+  // Redis Adapter 설정
+  const redisUrl = `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
+  const pubClient = createClient({ url: redisUrl });
+  const subClient = pubClient.duplicate();
+
+  Promise.all([pubClient.connect(), subClient.connect()])
+    .then(() => {
+      io.adapter(createAdapter(pubClient, subClient));
+      logger.info(`Socket.IO Redis 어댑터 연결 완료 (${redisUrl})`);
+    })
+    .catch((err) => {
+      logger.error('Redis 어댑터 연결 실패:', err);
+    });
 
   // JWT 인증 미들웨어
   io.use(async (socket: UserSocket, next) => {

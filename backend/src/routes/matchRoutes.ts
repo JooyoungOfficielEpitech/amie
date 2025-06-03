@@ -1,12 +1,12 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import { requestMatch, checkMatchStatus, cancelMatch } from '../controllers/matchController';
 import { protect } from '../middleware/userAuthMiddleware';
 
 const router = express.Router();
 
 // 모든 라우트에 인증 미들웨어 적용
-router.use(protect as RequestHandler);
+router.use(protect as express.RequestHandler);
 
 /**
  * @swagger
@@ -55,7 +55,7 @@ router.use(protect as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/request', requestMatch as unknown as RequestHandler);
+router.post('/request', asyncHandler(requestMatch));
 
 /**
  * @swagger
@@ -119,7 +119,7 @@ router.post('/request', requestMatch as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/status', checkMatchStatus as unknown as RequestHandler);
+router.get('/status', asyncHandler(checkMatchStatus));
 
 /**
  * @swagger
@@ -150,6 +150,6 @@ router.get('/status', checkMatchStatus as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/cancel', cancelMatch as unknown as RequestHandler);
+router.post('/cancel', asyncHandler(cancelMatch));
 
 export default router; 

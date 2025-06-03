@@ -1,5 +1,5 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import * as matchQueueController from '../controllers/matchQueueController';
 
 const router = express.Router();
@@ -80,7 +80,7 @@ const router = express.Router();
  *       500:
  *         description: 서버 오류
  */
-router.post('/join', matchQueueController.joinQueue as unknown as RequestHandler);
+router.post('/join', asyncHandler(matchQueueController.joinQueue));
 
 /**
  * @swagger
@@ -118,7 +118,7 @@ router.post('/join', matchQueueController.joinQueue as unknown as RequestHandler
  *       500:
  *         description: 서버 오류
  */
-router.put('/:userId/leave', matchQueueController.leaveQueue as unknown as RequestHandler);
+router.put('/:userId/leave', asyncHandler(matchQueueController.leaveQueue));
 
 /**
  * @swagger
@@ -167,7 +167,7 @@ router.put('/:userId/leave', matchQueueController.leaveQueue as unknown as Reque
  *       500:
  *         description: 서버 오류
  */
-router.get('/:userId/status', matchQueueController.checkQueueStatus as unknown as RequestHandler);
+router.get('/:userId/status', asyncHandler(matchQueueController.checkQueueStatus));
 
 /**
  * @swagger
@@ -213,7 +213,7 @@ router.get('/:userId/status', matchQueueController.checkQueueStatus as unknown a
  *       500:
  *         description: 서버 오류
  */
-router.get('/:userId/match', matchQueueController.findMatch as unknown as RequestHandler);
+router.get('/:userId/match', asyncHandler(matchQueueController.findMatch));
 
 /**
  * @swagger
@@ -255,7 +255,7 @@ router.get('/:userId/match', matchQueueController.findMatch as unknown as Reques
  *       500:
  *         description: 서버 오류
  */
-router.get('/', matchQueueController.getAllQueueEntries as unknown as RequestHandler);
+router.get('/', asyncHandler(matchQueueController.getAllQueueEntries));
 
 /**
  * @swagger
@@ -334,6 +334,6 @@ router.get('/', matchQueueController.getAllQueueEntries as unknown as RequestHan
  *       500:
  *         description: 서버 오류
  */
-router.get('/stats', matchQueueController.getQueueStats as unknown as RequestHandler);
+router.get('/stats', asyncHandler(matchQueueController.getQueueStats));
 
 export default router; 

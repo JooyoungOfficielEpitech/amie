@@ -1,5 +1,5 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import * as creditLogController from '../controllers/creditLogController';
 
 const router = express.Router();
@@ -80,7 +80,7 @@ const router = express.Router();
  *       500:
  *         description: 서버 오류
  */
-router.post('/', creditLogController.createCreditLog as unknown as RequestHandler);
+router.post('/', asyncHandler(creditLogController.createCreditLog));
 
 /**
  * @swagger
@@ -153,7 +153,7 @@ router.post('/', creditLogController.createCreditLog as unknown as RequestHandle
  *       500:
  *         description: 서버 오류
  */
-router.get('/user/:userId', creditLogController.getUserCreditLogs as unknown as RequestHandler);
+router.get('/user/:userId', asyncHandler(creditLogController.getUserCreditLogs));
 
 /**
  * @swagger
@@ -197,7 +197,7 @@ router.get('/user/:userId', creditLogController.getUserCreditLogs as unknown as 
  *       500:
  *         description: 서버 오류
  */
-router.get('/:logId', creditLogController.getCreditLog as unknown as RequestHandler);
+router.get('/:logId', asyncHandler(creditLogController.getCreditLog));
 
 /**
  * @swagger
@@ -237,7 +237,7 @@ router.get('/:logId', creditLogController.getCreditLog as unknown as RequestHand
  *       500:
  *         description: 서버 오류
  */
-router.post('/charge', creditLogController.chargeCredit as unknown as RequestHandler);
+router.post('/charge', asyncHandler(creditLogController.chargeCredit));
 
 /**
  * @swagger
@@ -277,7 +277,7 @@ router.post('/charge', creditLogController.chargeCredit as unknown as RequestHan
  *       500:
  *         description: 서버 오류
  */
-router.post('/use/match', creditLogController.useMatchCredit as unknown as RequestHandler);
+router.post('/use/match', asyncHandler(creditLogController.useMatchCredit));
 
 /**
  * @swagger
@@ -317,6 +317,6 @@ router.post('/use/match', creditLogController.useMatchCredit as unknown as Reque
  *       500:
  *         description: 서버 오류
  */
-router.post('/use/profile-unlock', creditLogController.useProfileUnlockCredit as unknown as RequestHandler);
+router.post('/use/profile-unlock', asyncHandler(creditLogController.useProfileUnlockCredit));
 
 export default router; 

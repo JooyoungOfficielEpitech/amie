@@ -1,5 +1,5 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import * as messageController from '../controllers/messageController';
 
 const router = express.Router();
@@ -76,7 +76,7 @@ const router = express.Router();
  *       500:
  *         description: 서버 오류
  */
-router.post('/', messageController.sendMessage as unknown as RequestHandler);
+router.post('/', asyncHandler(messageController.sendMessage));
 
 /**
  * @swagger
@@ -148,7 +148,7 @@ router.post('/', messageController.sendMessage as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/chat-room/:chatRoomId', messageController.getMessages as unknown as RequestHandler);
+router.get('/chat-room/:chatRoomId', asyncHandler(messageController.getMessages));
 
 /**
  * @swagger
@@ -197,6 +197,6 @@ router.get('/chat-room/:chatRoomId', messageController.getMessages as unknown as
  *       500:
  *         description: 서버 오류
  */
-router.get('/:messageId', messageController.getMessage as unknown as RequestHandler);
+router.get('/:messageId', asyncHandler(messageController.getMessage));
 
 export default router; 

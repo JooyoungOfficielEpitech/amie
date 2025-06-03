@@ -1,12 +1,12 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import { getCreditLogs, chargeCredit, getCreditUsageInfo, getCurrentCredit, useCredit } from '../controllers/creditController';
 import { protect } from '../middleware/userAuthMiddleware';
 
 const router = express.Router();
 
 // 모든 라우트에 인증 미들웨어 적용
-router.use(protect as RequestHandler);
+router.use(protect as express.RequestHandler);
 
 /**
  * @swagger
@@ -54,7 +54,7 @@ router.use(protect as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/logs', getCreditLogs as unknown as RequestHandler);
+router.get('/logs', asyncHandler(getCreditLogs));
 
 /**
  * @swagger
@@ -92,7 +92,7 @@ router.get('/logs', getCreditLogs as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/usage-info', getCreditUsageInfo as unknown as RequestHandler);
+router.get('/usage-info', asyncHandler(getCreditUsageInfo));
 
 /**
  * @swagger
@@ -139,7 +139,7 @@ router.get('/usage-info', getCreditUsageInfo as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/charge', chargeCredit as unknown as RequestHandler);
+router.post('/charge', asyncHandler(chargeCredit));
 
 /**
  * @swagger
@@ -181,7 +181,7 @@ router.post('/charge', chargeCredit as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/use', useCredit as unknown as RequestHandler);
+router.post('/use', asyncHandler(useCredit));
 
 /**
  * @swagger
@@ -213,6 +213,6 @@ router.post('/use', useCredit as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/current', getCurrentCredit as unknown as RequestHandler);
+router.get('/current', asyncHandler(getCurrentCredit));
 
 export default router; 

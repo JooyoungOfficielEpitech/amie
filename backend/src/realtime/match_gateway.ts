@@ -6,9 +6,11 @@ import {
   isUserWaitingForMatch
 } from '../services/matching.service';
 import { logger } from '../utils/logger';
-import { subscribeToChannel, CHANNELS } from '../services/redis.service';
+import { subscribeToChannel, publishEvent, CHANNELS } from '../services/redis.service';
 import User, { Gender } from '../models/User';
 import { CreditService } from '../services/creditService';
+import { ConnectionRegistry } from '../services/connectionRegistry';
+import { randomUUID } from 'crypto';
 
 interface UserSocket extends Socket {
   userId?: string;
@@ -18,11 +20,15 @@ interface UserSocket extends Socket {
 export class MatchGateway {
   private namespace: any;
   
-  // 사용자 ID와 소켓 ID를 매핑하는 객체
-  private userSocketMap = new Map<string, string>();
+  // 소켓 ID -> userId (로컬 인스턴스 전용)
   private socketUserMap = new Map<string, string>();
+  // 하나의 사용자가 여러 소켓으로 접속할 수 있으므로 Set 으로 관리
+  private userSocketsMap = new Map<string, Set<string>>();
   
   private creditService = new CreditService();
+  
+  // 인스턴스 식별자 (Redis 루프백 방지)
+  private instanceId: string = randomUUID();
   
   constructor(io: Server) {
     // 매칭 네임스페이스 설정
@@ -46,9 +52,21 @@ export class MatchGateway {
     const userId = socket.handshake.auth.userId;
     
     if (userId) {
-      // 사용자 ID와 소켓 ID 매핑
-      this.userSocketMap.set(userId as string, socket.id);
+      // socketId -> userId 로컬 매핑
       this.socketUserMap.set(socket.id, userId as string);
+      
+      // 다중 소켓 관리를 위한 Set 업데이트 (in-memory)
+      let socketSet = this.userSocketsMap.get(userId as string);
+      if (!socketSet) {
+        socketSet = new Set<string>();
+        this.userSocketsMap.set(userId as string, socketSet);
+      }
+      socketSet.add(socket.id);
+      
+      // Redis 레지스트리에 저장 (비동기)
+      ConnectionRegistry.mapSocketToUser(socket.id, userId as string).catch(err => {
+        logger.error('ConnectionRegistry mapSocketToUser 오류:', err);
+      });
       
       // 소켓에 사용자 ID 설정
       socket.userId = userId as string;
@@ -207,10 +225,23 @@ export class MatchGateway {
     const userId = this.socketUserMap.get(socket.id);
     
     if (userId) {
-      // 매핑 삭제
-      this.userSocketMap.delete(userId);
+      // socketId -> userId 매핑 제거
       this.socketUserMap.delete(socket.id);
-      
+
+      // userId -> Set<socketId> 에서 제거
+      const set = this.userSocketsMap.get(userId);
+      if (set) {
+        set.delete(socket.id);
+        if (set.size === 0) {
+          this.userSocketsMap.delete(userId);
+        }
+      }
+
+      // Redis 레지스트리 정리
+      ConnectionRegistry.unmapSocket(socket.id).catch(err => {
+        logger.error('ConnectionRegistry unmapSocket 오류:', err);
+      });
+
       logger.info(`매칭 소켓 연결 해제: ${socket.id}, 사용자: ${userId}, 이유: ${reason}`);
     } else {
       logger.info(`매칭 소켓 연결 해제: ${socket.id}, 이유: ${reason}`);
@@ -291,18 +322,37 @@ export class MatchGateway {
         logger.error('매칭 요청 이벤트 처리 중 오류:', error);
       }
     });
+
+    // 사용자별 알림 수신
+    subscribeToChannel(CHANNELS.MATCH_USER_NOTIFY, (message) => {
+      try {
+        const payload = JSON.parse(message);
+        if (payload.origin === this.instanceId) return; // 내 이벤트 무시
+        const { userId, event, data } = payload;
+        const localSet = this.userSocketsMap.get(userId);
+        if (localSet) {
+          localSet.forEach(sid => this.namespace.to(sid).emit(event, data));
+        }
+      } catch (err) {
+        logger.error('MATCH_USER_NOTIFY 처리 오류:', err);
+      }
+    });
   }
   
   // 특정 사용자에게 알림 전송
   private notifyUser(userId: string, event: string, data: any) {
-    const socketId = this.userSocketMap.get(userId);
-    
-    if (socketId) {
-      this.namespace.to(socketId).emit(event, data);
+    const localSocketSet = this.userSocketsMap.get(userId);
+    const localSocketId = localSocketSet ? Array.from(localSocketSet)[0] : null;
+
+    if (localSocketId) {
+      // 메모리 매핑이 있으면 즉시 전송
+      this.namespace.to(localSocketId).emit(event, data);
       return true;
     }
-    
-    logger.warn(`사용자에게 알림 실패: ${userId}, 이벤트=${event}, 연결된 소켓 없음`);
+
+    // Redis pub/sub 로 다른 인스턴스에 알림 위임
+    publishEvent(CHANNELS.MATCH_USER_NOTIFY, { origin: this.instanceId, userId, event, data });
+
     return false;
   }
   
@@ -504,7 +554,8 @@ export class MatchGateway {
   // 사용자의 크레딧 정보 업데이트
   private async updateUserCreditInfo(userId: string) {
     try {
-      const socketId = this.userSocketMap.get(userId);
+      const set = this.userSocketsMap.get(userId);
+      const socketId = set ? Array.from(set)[0] : null;
       if (!socketId) return false;
       
       const socket = this.namespace.sockets.get(socketId);
@@ -558,7 +609,7 @@ export class MatchGateway {
       // 소켓 연결 상태 유지 (필요하다면 matchingUsers 대신 다른 방법으로 구현)
       if (isWaiting) {
         // 유저가 매칭 중이면 현재 소켓 정보 캐싱 (간접적으로 메모리 상태 유지)
-        this.userSocketMap.set(userId, socket.id);
+        this.socketUserMap.set(socket.id, userId);
         console.log(`[MatchGateway] Socket mapping updated for waiting user ${userId}`);
       }
       

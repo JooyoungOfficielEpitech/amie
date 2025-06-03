@@ -32,6 +32,13 @@ export const CHANNELS = {
   MATCH_CANCELLED: 'match:cancelled',
   MATCH_SUCCESSFUL: 'match:successful',
   CREDIT_UPDATED: 'credit:updated',
+  // --- Chat 관련 채널 ---
+  CHAT_NEW_MESSAGE: 'chat:new-message',
+  CHAT_USER_TYPING: 'chat:user-typing',
+  CHAT_MESSAGES_READ: 'chat:messages-read',
+  CHAT_PARTNER_LEFT: 'chat:partner-left',
+  // --- Match 관련 채널 ---
+  MATCH_USER_NOTIFY: 'match:user-notify',
 };
 
 // 구독 클라이언트 (수신용)

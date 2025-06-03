@@ -1,5 +1,5 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import * as adminController from '../controllers/adminController';
 import { protect, adminOnly } from '../middleware/authMiddleware';
 
@@ -49,7 +49,7 @@ const router = express.Router();
  *       500:
  *         description: 서버 오류
  */
-router.post('/register', adminController.createAdmin as unknown as RequestHandler);
+router.post('/register', asyncHandler(adminController.createAdmin));
 
 /**
  * @swagger
@@ -93,13 +93,13 @@ router.post('/register', adminController.createAdmin as unknown as RequestHandle
  *       500:
  *         description: 서버 오류
  */
-router.post('/login', adminController.loginAdmin as unknown as RequestHandler);
+router.post('/login', asyncHandler(adminController.loginAdmin));
 
 // 보호된 라우트 (인증 필요)
-router.use(protect as RequestHandler);
+router.use(protect as express.RequestHandler);
 
 // 관리자 인증 필요 라우트
-router.use(adminOnly as RequestHandler);
+router.use(adminOnly as express.RequestHandler);
 
 /**
  * @swagger
@@ -119,7 +119,7 @@ router.use(adminOnly as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/', adminController.getAllAdmins as unknown as RequestHandler);
+router.get('/', asyncHandler(adminController.getAllAdmins));
 
 /**
  * @swagger
@@ -148,7 +148,7 @@ router.get('/', adminController.getAllAdmins as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/:id', adminController.getAdminById as unknown as RequestHandler);
+router.get('/:id', asyncHandler(adminController.getAdminById));
 
 /**
  * @swagger
@@ -197,7 +197,7 @@ router.get('/:id', adminController.getAdminById as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.put('/:id/change-password', adminController.changePassword as unknown as RequestHandler);
+router.put('/:id/change-password', asyncHandler(adminController.changePassword));
 
 /**
  * @swagger
@@ -226,6 +226,6 @@ router.put('/:id/change-password', adminController.changePassword as unknown as 
  *       500:
  *         description: 서버 오류
  */
-router.delete('/:id', adminController.deleteAdmin as unknown as RequestHandler);
+router.delete('/:id', asyncHandler(adminController.deleteAdmin));
 
 export default router; 

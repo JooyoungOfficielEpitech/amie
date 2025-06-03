@@ -76,6 +76,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     socketRef.current = socket;
+    setMatchSocket(socket); // 즉시 상태 업데이트
 
     // 소켓 수동 연결 시도
     socket.connect();
@@ -118,13 +119,26 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('소켓 오류:', error);
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason: any) => {
+      console.warn('소켓 disconnect:', reason);
       setIsConnected(false);
     });
 
     socket.on('connect_error', (error: Error) => {
       console.error('소켓 연결 오류:', error.message);
       setIsConnected(false);
+    });
+
+    socket.on('reconnect_attempt', (attempt: number) => {
+      console.info(`소켓 reconnect 시도 #${attempt}`);
+    });
+
+    socket.on('reconnect_error', (err: any) => {
+      console.error('소켓 reconnect 오류:', err);
+    });
+
+    socket.on('reconnect_failed', () => {
+      console.error('소켓 reconnect 실패: 재시도 중단');
     });
 
     return socket;
@@ -169,12 +183,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // 소켓 객체를 상태에 저장해서 컴포넌트에 전달
   const [matchSocket, setMatchSocket] = useState<any | null>(null);
   
-  // 소켓 참조가 변경될 때마다 상태 업데이트
-  useEffect(() => {
-    if (socketRef.current !== matchSocket) {
-      setMatchSocket(socketRef.current);
-    }
-  }, [socketRef.current]);
+  // initSocket 내부에서 setMatchSocket 호출로 상태 동기화
 
   return (
     <SocketContext.Provider value={{ 

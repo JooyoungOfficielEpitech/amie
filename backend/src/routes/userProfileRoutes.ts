@@ -1,12 +1,12 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
 import { getMyProfile, updateMyProfile } from '../controllers/userProfileController';
+import asyncHandler from '../middleware/asyncHandler';
 import { protect } from '../middleware/userAuthMiddleware';
 
 const router = express.Router();
 
 // 모든 라우트에 인증 미들웨어 적용
-router.use(protect as RequestHandler);
+router.use(protect as express.RequestHandler);
 
 /**
  * @swagger
@@ -75,7 +75,7 @@ router.use(protect as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/profile', getMyProfile as unknown as RequestHandler);
+router.get('/profile', asyncHandler(getMyProfile));
 
 /**
  * @swagger
@@ -135,6 +135,6 @@ router.get('/profile', getMyProfile as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.patch('/profile', updateMyProfile as unknown as RequestHandler);
+router.patch('/profile', asyncHandler(updateMyProfile));
 
 export default router; 

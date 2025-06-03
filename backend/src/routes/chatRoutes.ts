@@ -1,5 +1,5 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import { getMyChatRooms, getChatRoomMessages, sendMessage, getChatRoomStatus, getChatRoomHistory } from '../controllers/chatController';
 import { getMessages } from '../controllers/messageController';
 import { protect } from '../middleware/userAuthMiddleware';
@@ -7,7 +7,7 @@ import { protect } from '../middleware/userAuthMiddleware';
 const router = express.Router();
 
 // 모든 라우트에 인증 미들웨어 적용
-router.use(protect as RequestHandler);
+router.use(protect as express.RequestHandler);
 
 /**
  * @swagger
@@ -60,7 +60,7 @@ router.use(protect as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/rooms', getMyChatRooms as unknown as RequestHandler);
+router.get('/rooms', asyncHandler(getMyChatRooms));
 
 /**
  * @swagger
@@ -110,7 +110,7 @@ router.get('/rooms', getMyChatRooms as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/room/:roomId', getMessages as unknown as RequestHandler);
+router.get('/room/:roomId', asyncHandler(getMessages));
 
 /**
  * @swagger
@@ -161,7 +161,7 @@ router.get('/room/:roomId', getMessages as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/message', sendMessage as unknown as RequestHandler);
+router.post('/message', asyncHandler(sendMessage));
 
 /**
  * @swagger
@@ -200,7 +200,7 @@ router.post('/message', sendMessage as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/room/:roomId/status', getChatRoomStatus as unknown as RequestHandler);
+router.get('/room/:roomId/status', asyncHandler(getChatRoomStatus));
 
 /**
  * @swagger
@@ -240,6 +240,6 @@ router.get('/room/:roomId/status', getChatRoomStatus as unknown as RequestHandle
  *       500:
  *         description: 서버 오류
  */
-router.get('/room/:roomId/history', getChatRoomHistory as unknown as RequestHandler);
+router.get('/room/:roomId/history', asyncHandler(getChatRoomHistory));
 
 export default router; 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import asyncHandler from '../middleware/asyncHandler';
 import { register, login, socialLogin, socialRegister } from '../controllers/authController';
 
 const router = express.Router();
@@ -90,7 +90,7 @@ const router = express.Router();
  *       500:
  *         description: 서버 오류
  */
-router.post('/register', register as unknown as RequestHandler);
+router.post('/register', asyncHandler(register));
 
 /**
  * @swagger
@@ -153,7 +153,7 @@ router.post('/register', register as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/login', login as unknown as RequestHandler);
+router.post('/login', asyncHandler(login));
 
 /**
  * @swagger
@@ -188,7 +188,7 @@ router.post('/login', login as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/social-login', socialLogin as unknown as RequestHandler);
+router.post('/social-login', asyncHandler(socialLogin));
 
 /**
  * @swagger
@@ -283,6 +283,6 @@ router.post('/social-login', socialLogin as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/social-register', socialRegister as unknown as RequestHandler);
+router.post('/social-register', asyncHandler(socialRegister));
 
 export default router; 

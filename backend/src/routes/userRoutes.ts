@@ -1,6 +1,6 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
 import * as userController from '../controllers/userController';
+import asyncHandler from '../middleware/asyncHandler';
 
 const router = express.Router();
 
@@ -76,7 +76,7 @@ const router = express.Router();
  *       500:
  *         description: 서버 오류
  */
-router.post('/', userController.createUser as unknown as RequestHandler);
+router.post('/', asyncHandler(userController.createUser));
 
 /**
  * @swagger
@@ -143,7 +143,7 @@ router.post('/', userController.createUser as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/', userController.getUsers as unknown as RequestHandler);
+router.get('/', asyncHandler(userController.getUsers));
 
 /**
  * @swagger
@@ -201,7 +201,7 @@ router.get('/', userController.getUsers as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.get('/:id', userController.getUserById as unknown as RequestHandler);
+router.get('/:id', asyncHandler(userController.getUserById));
 
 /**
  * @swagger
@@ -271,7 +271,7 @@ router.get('/:id', userController.getUserById as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.put('/:id', userController.updateUser as unknown as RequestHandler);
+router.put('/:id', asyncHandler(userController.updateUser));
 
 /**
  * @swagger
@@ -309,7 +309,7 @@ router.put('/:id', userController.updateUser as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.delete('/:id', userController.deleteUser as unknown as RequestHandler);
+router.delete('/:id', asyncHandler(userController.deleteUser));
 
 /**
  * @swagger
@@ -365,7 +365,7 @@ router.delete('/:id', userController.deleteUser as unknown as RequestHandler);
  *       500:
  *         description: 서버 오류
  */
-router.post('/:id/credit', userController.addCredit as unknown as RequestHandler);
+router.post('/:id/credit', asyncHandler(userController.addCredit));
 
 /**
  * @swagger
@@ -424,6 +424,6 @@ router.post('/:id/credit', userController.addCredit as unknown as RequestHandler
  *       500:
  *         description: 서버 오류
  */
-router.get('/profile', userController.getProfile as unknown as RequestHandler);
+router.get('/profile', asyncHandler(userController.getProfile));
 
 export default router; 
