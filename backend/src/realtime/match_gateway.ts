@@ -8,7 +8,7 @@ import {
 import { logger } from '../utils/logger';
 import { subscribeToChannel, CHANNELS } from '../services/redis.service';
 import User, { Gender } from '../models/User';
-import { getCreditByUserId } from '../services/credit.service';
+import { CreditService } from '../services/creditService';
 
 interface UserSocket extends Socket {
   userId?: string;
@@ -21,6 +21,8 @@ export class MatchGateway {
   // 사용자 ID와 소켓 ID를 매핑하는 객체
   private userSocketMap = new Map<string, string>();
   private socketUserMap = new Map<string, string>();
+  
+  private creditService = new CreditService();
   
   constructor(io: Server) {
     // 매칭 네임스페이스 설정
@@ -102,7 +104,7 @@ export class MatchGateway {
   private async sendCreditInfo(socket: UserSocket, userId: string) {
     try {
       // 크레딧 서비스에서 사용자의 크레딧 정보 조회
-      const creditInfo = await getCreditByUserId(userId);
+      const creditInfo = await this.creditService.getCreditByUserId(userId);
       
       if (creditInfo) {
         socket.emit('credit_update', { credit: creditInfo.credit });

@@ -122,4 +122,19 @@ export class CreditService {
     }
     // 세션 종료 로직 제거
   }
+
+  // 사용자 ID로 크레딧 정보 조회 (기존 credit.service.ts 에서 이동)
+  async getCreditByUserId(userId: string): Promise<{ credit: number } | null> {
+    try {
+      const user = await User.findById(userId).select('credit');
+      if (!user) {
+        return null;
+      }
+      return { credit: user.credit };
+    } catch (error) {
+      // util 로거가 없을 수도 있으므로 console 사용
+      console.error(`getCreditByUserId error: ${userId}`, error);
+      return null;
+    }
+  }
 } 
