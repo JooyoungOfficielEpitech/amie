@@ -7,7 +7,6 @@ import * as AppStrings from '../../constants/strings';
 import { usePayment } from '../../contexts/PaymentContext';
 import { useCredit } from '../../contexts/CreditContext';
 import { useSocket } from '../../contexts/SocketContext';
-import { useMatch } from '../../contexts/MatchContext';
 import { CREDIT_MESSAGES } from '../../constants/credits';
 import CentralRippleAnimation from './CentralRippleAnimation';
 import MatchingBox from './MatchingBox';
@@ -32,7 +31,7 @@ interface MainPageProps {
     onAutoSearchChange?: (enabled: boolean) => void;
 }
 
-const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate, shouldStartMatching = false, isAutoSearchEnabled, onAutoSearchChange }) => {
+const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate = false, isAutoSearchEnabled, onAutoSearchChange }) => {
     // 상태들
     const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
@@ -44,7 +43,6 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     const [isLoadingMatchAction, setIsLoadingMatchAction] = useState<boolean>(false);
     const [showRippleAnimation, setShowRippleAnimation] = useState<boolean>(false);
     const [isWaiting, setIsWaiting] = useState<boolean>(false);
-    const { setIsAutoMatchEnabled } = useMatch();
     
     // 불필요한 API 호출 방지용 레퍼런스
     const socketInitializedRef = useRef<boolean>(false);
