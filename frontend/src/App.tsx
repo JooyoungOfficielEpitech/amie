@@ -212,6 +212,13 @@ function App() {
     setIsAutoSearchEnabled(enabled);
   };
 
+  // 크레딧이 10 이하로 떨어지면 auto search 비활성화
+  useEffect(() => {
+    if (isAutoSearchEnabled && (userCredit !== null && userCredit < 10)) {
+      setIsAutoSearchEnabled(false);
+    }
+  }, [userCredit, isAutoSearchEnabled]);
+
   // 렌더링 전에 헤더에 표시할 컴포넌트
   const renderHeader = () => {
     if (!isLoggedIn) return null;

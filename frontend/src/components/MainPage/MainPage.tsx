@@ -243,43 +243,51 @@ const MainPage: React.FC<MainPageProps> = React.memo(({ onLogout, onCreditUpdate
     useEffect(() => {
         // 프로필이 로딩되었고 매칭된 채팅방이 없는 경우에만 실행
         if (profile && !matchedRoomId && !isLoadingProfile && matchSocket?.connected) {
-            // localStorage에서 자동 매칭 신호 확인
-            const autoStartMatching = localStorage.getItem('autoStartMatching');
-            
-            // props나 localStorage 중 하나라도 자동 매칭 신호가 있으면 매칭 상태 확인
-            if ((shouldStartMatching || autoStartMatching === 'true') && profile.gender === 'male') {
-                // localStorage 신호가 있으면 제거
-                if (autoStartMatching === 'true') {
-                    localStorage.removeItem('autoStartMatching');
-                }
-                
+            // auto search가 활성화되어 있으면 자동 매칭 진입
+            if (isAutoSearchEnabled && profile.gender === 'male') {
                 // 이미 매칭 중이거나 채팅방이 있거나, isWaiting이면 추가 요청을 보내지 않음
                 if (isMatching || matchedRoomId || isWaiting) {
                     return;
                 }
-                
                 // 매칭 시작 전에 현재 매칭 상태 확인
                 matchSocket.emit('check_match_status');
-                
                 // 약간의 지연 후 매칭 상태 재확인
                 setTimeout(() => {
-                    // 지연 후에도 매칭 중이 아니고 채팅방이 없고, isWaiting도 아니면 매칭 시작
                     if (!isMatching && !matchedRoomId && !isWaiting) {
-                        // 크레딧 확인
                         if (contextCredit < REQUIRED_MATCHING_CREDIT) {
                             setMatchError(CREDIT_MESSAGES.INSUFFICIENT_CREDITS);
                             return;
                         }
-                        
-                        // 매칭 시작
                         setIsMatching(true);
                         setShowRippleAnimation(true);
                         matchSocket.emit('start_match');
                     }
-                }, 500); // 500ms 지연
+                }, 500);
             }
         }
-    }, [profile, matchedRoomId, isLoadingProfile, matchSocket, contextCredit, shouldStartMatching, isMatching, isWaiting]);
+    }, [profile, matchedRoomId, isLoadingProfile, matchSocket, contextCredit, isAutoSearchEnabled, isMatching, isWaiting]);
+
+    // auto search가 꺼질 때 매칭 대기 중이면 자동으로 매칭 취소
+    useEffect(() => {
+        if (
+            profile &&
+            profile.gender === 'male' &&
+            isMatching &&
+            !isAutoSearchEnabled &&
+            matchSocket?.connected
+        ) {
+            // 매칭 취소
+            setShowRippleAnimation(false);
+            setIsMatching(false);
+            matchSocket.emit('cancel_match');
+            localStorage.setItem('isAutoMatchEnabled', 'false');
+            matchSocket.emit('toggle_match', { isEnabled: false });
+            if (onAutoSearchChange) onAutoSearchChange(false);
+            setTimeout(() => {
+                matchSocket.emit('check_match_status');
+            }, 500);
+        }
+    }, [isAutoSearchEnabled, isMatching, profile, matchSocket, onAutoSearchChange]);
 
     // 버튼 상태 관련 memoized 값들
     const buttonText = useMemo(() => 
