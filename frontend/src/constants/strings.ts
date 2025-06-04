@@ -1,5 +1,5 @@
 // src/constants/strings.ts
-export const SUBTITLE = "Find your first last date!"
+export const SUBTITLE = "Find your first last date!~~"
 
 
 // MyProfile Page Texts
