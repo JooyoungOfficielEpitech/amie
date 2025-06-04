@@ -7,7 +7,7 @@ import Settings from './components/Settings/Settings';
 import SignupFlow from './components/SignupFlow/SignupFlow';
 import { SignupData } from './types';
 import './App.css';
-import { authApi, RegisterData, SocialRegisterData, userApi, UserProfile } from './api';
+import { authApi, userApi, UserProfile } from './api';
 import Header from './components/MainPage/Header';
 import { CreditProvider } from './contexts/CreditContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -92,7 +92,7 @@ function App() {
   const handleLoginSuccess = useCallback((token?: string) => {
     if (token) {
       localStorage.setItem('accessToken', token);
-      localStorage.removeItem('access_token');
+      // access_token은 소셜 로그인 후 회원가입을 위해 유지
       setIsLoggedIn(true);
       fetchUserProfile(); // 즉시 호출
     }

@@ -93,6 +93,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
             }
 
             try {
+                // 소셜 로그인 토큰 저장
+                localStorage.setItem('access_token', accessToken);
+
                 const backendResponse = await authApi.socialLogin({ 
                     provider: 'google', 
                     token: accessToken 
@@ -102,26 +105,22 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
                     // 인증 관련 localStorage 항목 설정 - auto search 설정은 그대로 유지
                     localStorage.setItem('accessToken', backendResponse.token);
                     onLoginSuccess(backendResponse.token);
-                } else {
-                    // Check if the reason is "needs registration"
-                    if (!backendResponse.success && backendResponse.error?.includes('회원가입이 필요합니다')) {
-                        // Call the function passed from App.tsx to start social signup
-                        // Safely access provider and socialEmail from the response
-                        const provider = backendResponse.provider; // Assuming provider is always present
-                        const socialEmail = backendResponse.socialEmail;
-                        
-                        if (provider && socialEmail) {
-                             onStartSocialSignup(provider, socialEmail); // Uncommented and call the actual function
-                        } else {
-                             console.error("Missing provider or socialEmail in backend response for social signup.");
-                             setError('소셜 로그인 정보를 받아오지 못했습니다.'); // Show error if needed data is missing
-                        }
+                } else if (!backendResponse.success && backendResponse.error?.includes('회원가입이 필요합니다')) {
+                    // Call the function passed from App.tsx to start social signup
+                    // Safely access provider and socialEmail from the response
+                    const provider = backendResponse.provider; // Assuming provider is always present
+                    const socialEmail = backendResponse.socialEmail;
+                    
+                    if (provider && socialEmail) {
+                        onStartSocialSignup(provider, socialEmail); // Uncommented and call the actual function
                     } else {
-                        // Handle other backend errors
-                        throw new Error(backendResponse.message || backendResponse.error || 'Google login failed on backend.');
+                        console.error("Missing provider or socialEmail in backend response for social signup.");
+                        setError('소셜 로그인 정보를 받아오지 못했습니다.'); // Show error if needed data is missing
                     }
+                } else {
+                    // Handle other backend errors
+                    throw new Error(backendResponse.message || backendResponse.error || 'Google login failed on backend.');
                 }
-
             } catch (err: any) {
                 console.error('Backend social login error:', err);
                 setError(err.message || 'Failed to process Google login.');
