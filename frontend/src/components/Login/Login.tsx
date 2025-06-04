@@ -65,6 +65,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
                     // localStorage.setItem('rememberMe', 'true'); // Example
                 }
                 onLoginSuccess(response.token); // Notify parent component of success
+                window.location.reload(); // 로그인 성공 시 리프레시
             } else {
                 throw new Error(response.message || '로그인 실패. 이메일 또는 비밀번호를 확인하세요.');
             }
@@ -105,6 +106,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onStartSignup, onStartSoc
                     // 인증 관련 localStorage 항목 설정 - auto search 설정은 그대로 유지
                     localStorage.setItem('accessToken', backendResponse.token);
                     onLoginSuccess(backendResponse.token);
+                    window.location.reload(); // 소셜 로그인 성공 시 리프레시
                 } else if (!backendResponse.success && backendResponse.error?.includes('회원가입이 필요합니다')) {
                     // Call the function passed from App.tsx to start social signup
                     // Safely access provider and socialEmail from the response
