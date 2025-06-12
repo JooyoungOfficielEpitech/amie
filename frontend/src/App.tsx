@@ -7,7 +7,7 @@ import Settings from './components/Settings/Settings';
 import SignupFlow from './components/SignupFlow/SignupFlow';
 import { SignupData } from './types';
 import './App.css';
-import { authApi, RegisterData, SocialRegisterData, userApi, UserProfile } from './api';
+import { authApi, userApi, UserProfile } from './api';
 import Header from './components/MainPage/Header';
 import { CreditProvider } from './contexts/CreditContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -92,7 +92,7 @@ function App() {
   const handleLoginSuccess = useCallback((token?: string) => {
     if (token) {
       localStorage.setItem('accessToken', token);
-      localStorage.removeItem('access_token');
+      // access_token은 소셜 로그인 후 회원가입을 위해 유지
       setIsLoggedIn(true);
       fetchUserProfile(); // 즉시 호출
     }
@@ -126,63 +126,80 @@ function App() {
       // Convert date string to birthYear
       const birthYear = new Date(finalData.dob).getFullYear();
       const height = parseInt(finalData.height);
-
+      
       // Filter out null values from profilePics
-      const profileImageUrls = finalData.profilePics.filter((url): url is string => url !== null);
-
+      const profileImages = finalData.profilePics.filter((url): url is string => url !== null);
+      
       // Get business card URL if it exists and user is male
-      const businessCardImageUrl = finalData.gender === 'male' ? finalData.businessCard || undefined : undefined;
+      const businessCardImage = finalData.gender === 'male' ? finalData.businessCard || undefined : undefined;
 
-      let response; // To store response from either API call
-
-      // Check if it's a social signup flow
+      let response;
+      
       if (socialSignupData) {
-        const socialPayload: SocialRegisterData = {
+        // 소셜 회원가입
+        response = await authApi.socialRegister({
           provider: socialSignupData.provider,
           socialEmail: socialSignupData.socialEmail,
           nickname: finalData.nickname,
-          birthYear: birthYear,
-          height: height,
+          birthYear,
+          height,
           city: finalData.city,
           gender: finalData.gender as 'male' | 'female',
-          profileImages: profileImageUrls,
-          businessCardImage: businessCardImageUrl
-        };
-        response = await authApi.socialRegister(socialPayload);
+          profileImages,
+          businessCardImage
+        });
+
+        if (response.success) {
+          // 소셜 회원가입 성공 시 소셜 로그인 API 호출
+          const loginResponse = await authApi.socialLogin({
+            provider: socialSignupData.provider,
+            token: localStorage.getItem('access_token') || ''
+          });
+
+          if (loginResponse.success && loginResponse.token) {
+            localStorage.setItem('accessToken', loginResponse.token);
+            setIsLoggedIn(true);
+            setShowSignupFlow(false);
+            setSocialSignupData(null);
+            await fetchUserProfile();
+          } else {
+            throw new Error('자동 로그인에 실패했습니다.');
+          }
+        } else {
+          throw new Error(response.message || '회원가입에 실패했습니다.');
+        }
       } else {
-        // Normal email signup
-        const registerPayload: RegisterData = {
+        // 일반 회원가입
+        response = await authApi.register({
           email: finalData.email,
           password: finalData.password,
           nickname: finalData.nickname,
-          birthYear: birthYear,
-          height: height,
+          birthYear,
+          height,
           city: finalData.city,
           gender: finalData.gender as 'male' | 'female',
-          profileImages: profileImageUrls,
-          businessCardImage: businessCardImageUrl
-        };
-        response = await authApi.register(registerPayload);
-      }
-
-      if (response.success) {
-        // Automatically log in after successful registration
-        const loginResponse = await authApi.login({
-          email: finalData.email,
-          password: finalData.password
+          profileImages,
+          businessCardImage
         });
 
-        if (loginResponse.success && loginResponse.token) {
-          localStorage.setItem('accessToken', loginResponse.token);
-          setIsLoggedIn(true);
-          setShowSignupFlow(false);
-          setSocialSignupData(null);
-          await fetchUserProfile(); // Fetch user profile after login
+        if (response.success) {
+          // 일반 회원가입 성공 시 일반 로그인 API 호출
+          const loginResponse = await authApi.login({
+            email: finalData.email,
+            password: finalData.password
+          });
+
+          if (loginResponse.success && loginResponse.token) {
+            localStorage.setItem('accessToken', loginResponse.token);
+            setIsLoggedIn(true);
+            setShowSignupFlow(false);
+            await fetchUserProfile();
+          } else {
+            throw new Error('자동 로그인에 실패했습니다.');
+          }
         } else {
-          throw new Error('자동 로그인에 실패했습니다.');
+          throw new Error(response.message || '회원가입에 실패했습니다.');
         }
-      } else {
-        throw new Error(response.message || '회원가입에 실패했습니다.');
       }
     } catch (error: any) {
       console.error('Signup error:', error);
